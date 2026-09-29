@@ -4549,6 +4549,7 @@
         <div><label class="text-xs font-medium text-slate-400 mb-1 block">Recurrence Interval</label>
           <select id="billEditInterval">${RECURRENCE_INTERVALS.map(i => `<option value="${i.value}" ${bill.recurrenceInterval === i.value ? 'selected' : ''}>${i.label}</option>`).join('')}</select>
         </div>
+        <p id="billEditSchedulePreview" class="text-sm text-slate-400" role="status" aria-live="polite"></p>
         <div><label class="text-xs font-medium text-slate-400 mb-1 block">Due Day (updates next due date)</label><input type="number" id="billEditDueDay" value="${bill.dueDay || 1}" min="1" max="31"></div>
         <div><label class="text-xs font-medium text-slate-400 mb-1 block">Type</label>
           <select id="billEditType"><option value="ongoing" ${bill.type === 'ongoing' ? 'selected' : ''}>Ongoing</option><option value="limited" ${bill.type === 'limited' ? 'selected' : ''}>Limited (Payoff)</option></select>
@@ -4561,15 +4562,30 @@
       };
       const firstDueDateEl = document.getElementById('billEditFirstDueDate');
       const dueDayEl = document.getElementById('billEditDueDay');
+      const intervalEl = document.getElementById('billEditInterval');
+      const schedulePreviewEl = document.getElementById('billEditSchedulePreview');
+      const updateSchedulePreview = () => {
+        const firstDate = firstDueDateEl.value;
+        if (!firstDate) {
+          schedulePreviewEl.textContent = 'Choose a first due date to see the next payments.';
+          return;
+        }
+        const dates = [0, 1, 2].map(index => BillScheduler.occurrenceAt(firstDate, intervalEl.value, index));
+        schedulePreviewEl.textContent = `Scheduled payments: ${dates.map(date => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })).join(' · ')}`;
+      };
       let firstDueDateTouched = false;
       firstDueDateEl.addEventListener('input', () => {
         firstDueDateTouched = true;
         const dateDay = dayFromDate(firstDueDateEl.value);
         if (dateDay) dueDayEl.value = dateDay;
+        updateSchedulePreview();
       });
       dueDayEl.addEventListener('input', () => {
         if (!firstDueDateTouched) firstDueDateEl.value = firstDueDateForDueDay(dueDayEl.value, firstDueDateEl.value);
+        updateSchedulePreview();
       });
+      intervalEl.addEventListener('change', updateSchedulePreview);
+      updateSchedulePreview();
 
       modal.classList.remove('hidden'); modal.classList.add('flex');
     }
