@@ -105,3 +105,13 @@ test('a one-time expense moves between periods when its date changes', () => {
   assert.equal(firstLog.items.length, 0);
   assert.equal(secondLog.items[0].dueDate, '2026-08-16');
 });
+
+test('changing a repeated weekly bill to monthly clears unpaid repeats in the check', () => {
+  const log = { items: [] };
+  const schedule = { sourceType: 'recurring', sourceId: 12, name: 'Payment', amount: 100, category: 'Housing' };
+  scheduler.reconcileScheduledItems(log, { ...schedule, dates: ['2026-10-16', '2026-10-23'] });
+  scheduler.reconcileScheduledItems(log, {
+    ...schedule, dates: ymd(scheduler.getOccurrencesInRange('2026-10-16', 'monthly', '2026-10-13', '2026-10-26'))
+  });
+  assert.deepEqual(log.items.map(item => item.dueDate), ['2026-10-16']);
+});
