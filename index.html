@@ -4914,6 +4914,19 @@
     }
 
     // ===================== CHECK LOGS =====================
+    function getRepeatedRecurringBills(log) {
+      const counts = new Map();
+      (log.items || []).forEach(item => {
+        if (item.scheduleSourceType !== 'recurring') return;
+        const id = String(item.scheduleSourceId);
+        counts.set(id, (counts.get(id) || 0) + 1);
+      });
+      return (state.checkTracker.bills || []).filter(bill =>
+        ['weekly', 'biweekly'].includes(bill.recurrenceInterval) &&
+        (counts.get(String(bill.id)) || 0) > 1
+      );
+    }
+
     function renderCheckLogs() {
       const container = document.getElementById('checkLogHistory');
       container.innerHTML = '';
@@ -4923,6 +4936,7 @@
         const projectedBalance = (Number(log.checkAmount) || 0) - projectedSpending;
         const totalPaid = log.items.reduce((sum, item) => sum + (item.paid ? (Number(item.cost) || 0) : 0), 0);
         const actualBalance = (Number(log.checkAmount) || 0) - totalPaid;
+        const repeatedBills = getRepeatedRecurringBills(log);
 
         const card = document.createElement('div');
         card.className = 'card check-log-card p-4';
@@ -4978,6 +4992,11 @@
             </table>
           </div>
           <div class="check-log-add mt-2"><button class="btn btn-secondary btn-sm add-item-btn">+ Add One-Time Bill</button></div>
+          ${repeatedBills.length ? `<div class="schedule-assurance mt-2">
+            <span aria-hidden="true">!</span>
+            <span>${repeatedBills.map(bill => escapeHtml(bill.name)).join(', ')} ${repeatedBills.length === 1 ? 'repeats' : 'repeat'} in this check because ${repeatedBills.length === 1 ? 'it is' : 'they are'} set to Weekly or Every 2 Weeks.</span>
+            <button class="btn btn-secondary btn-sm fix-repeated-bills-btn ml-2">Change ${repeatedBills.length === 1 ? 'it' : 'these'} to Monthly</button>
+          </div>` : ''}
           <p class="schedule-assurance"><span aria-hidden="true">&#10003;</span> Recurring and one-time expenses due from ${formatDateForDisplay(log.startDate)} through ${formatDateForDisplay(log.endDate)} are included automatically.</p>
           ${renderBankReviewForLog(log)}
           <div class="check-log-summary grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-700/50">
@@ -5066,6 +5085,22 @@
 
       if (target.classList.contains('bank-sync-log-btn')) {
         syncBankTransactions(false);
+      } else if (target.classList.contains('fix-repeated-bills-btn')) {
+        const repeatedBills = getRepeatedRecurringBills(log);
+        if (!repeatedBills.length) return;
+        showConfirmModal(
+          'Change recurring expenses to Monthly',
+          `Change ${repeatedBills.map(bill => bill.name).join(', ')} to monthly payments? Unpaid weekly repeats will be removed from open checks. Paid entries will remain.`,
+          () => {
+            repeatedBills.forEach(bill => {
+              bill.recurrenceInterval = 'monthly';
+              syncRecurringBillIntoOpenLogs(bill);
+            });
+            saveState(); saveDataToCloud();
+            renderBills(); renderCheckLogs(); renderCalendar(); renderAnalytics();
+            window.showToast('Monthly schedules updated across open checks.', 'success');
+          }
+        );
       } else if (target.classList.contains('sync-log-btn')) {
         syncBillsIntoCheckLog(log);
         saveState(); saveDataToCloud(); renderCheckLogs();
