@@ -4,6 +4,44 @@ const scheduler = require('../bill-scheduler.js');
 
 const ymd = dates => dates.map(scheduler.formatDateYMD);
 
+test('a clamped September 30 anchor retains the configured 31st in later months', () => {
+  assert.deepEqual(ymd(scheduler.getOccurrencesInRange('2026-09-30','monthly','2026-09-01','2026-12-31',31)), ['2026-09-30','2026-10-31','2026-11-30','2026-12-31']);
+  assert.equal(scheduler.formatDateYMD(scheduler.getNextDueDate('2026-09-30','monthly','2026-10-01',31)),'2026-10-31');
+  assert.equal(scheduler.formatDateYMD(scheduler.getOccurrenceOnOrBefore('2026-09-30','monthly','2026-11-01',31)),'2026-10-31');
+  assert.deepEqual(ymd(scheduler.getOccurrencesInRange('2026-09-30','weekly','2026-09-29','2026-10-12',31)),['2026-09-30','2026-10-07']);
+});
+
+test('schedule edits never rewrite paid costs, category, date or name', () => {
+  const paid={id:1,bill:'Original mortgage',cost:2050,category:'Housing',dueDate:'2026-09-30',paid:true,scheduleSourceType:'recurring',scheduleSourceId:2};
+  const log={items:[structuredClone(paid)]};
+  const schedule={sourceType:'recurring',sourceId:2,name:'Renamed mortgage',amount:2200,category:'Other',dates:['2026-09-30']};
+  assert.equal(scheduler.reconcileScheduledItems(log,schedule),false);
+  assert.deepEqual(log.items,[paid]);
+  assert.equal(scheduler.reconcileScheduledItems(log,schedule),false);
+});
+
+test('a renamed legacy paid row keeps its identity on repeat synchronization', () => {
+  const log={items:[{id:1,bill:'Old name',cost:2050,category:'Housing',dueDate:'2026-09-30',paid:true}]};
+  const schedule={sourceType:'recurring',sourceId:2,name:'New name',previousNames:['Old name'],amount:2200,dates:['2026-09-30']};
+  scheduler.reconcileScheduledItems(log,schedule);
+  scheduler.reconcileScheduledItems(log,{...schedule,previousNames:[]});
+  assert.equal(log.items.length,1);
+  assert.equal(log.items[0].bill,'Old name');
+  assert.equal(log.items[0].cost,2050);
+});
+
+test('verified mortgage fixture repairs weekly repeats without merging distinct holdings', () => {
+  const log={items:[]};
+  const holding={sourceType:'recurring',sourceId:2,name:'Mortgage Holding 1',amount:2050,category:'Housing'};
+  scheduler.reconcileScheduledItems(log,{...holding,dates:ymd(scheduler.getOccurrencesInRange('2026-09-30','weekly','2026-09-29','2026-10-12'))});
+  assert.deepEqual(log.items.map(item=>item.dueDate),['2026-09-30','2026-10-07']);
+  scheduler.reconcileScheduledItems(log,{...holding,dates:['2026-09-30']});
+  scheduler.reconcileScheduledItems(log,{...holding,sourceId:1,name:'Mortgage Holding 2',dates:[]});
+  assert.equal(log.items.length,1);
+  assert.equal(log.items[0].scheduleSourceId,2);
+  assert.equal(scheduler.reconcileScheduledItems(log,{...holding,dates:['2026-09-30']}),false);
+});
+
 test('includes every bill occurrence on inclusive check boundaries', () => {
   assert.deepEqual(
     ymd(scheduler.getOccurrencesInRange('2026-08-02', 'monthly', '2026-07-29', '2026-08-11')),

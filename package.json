@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "check": "node --check bill-scheduler.js && node --check savings-forecast.js && node --test"
-  }
+    "check": "node --check bill-scheduler.js && node --check savings-forecast.js && node --check paycheck-planner.js && node --check budget-scenarios.js && node --check account-isolation.js && node --test"
+  },
+  "version": "0.38.0"
 }

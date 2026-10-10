@@ -10,8 +10,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="bill-scheduler.js"></script>
-  <script src="savings-forecast.js"></script>
+  <script src="bill-scheduler.js?v=0.38.0"></script>
+  <script src="paycheck-planner.js?v=0.38.0"></script>
+  <script src="account-isolation.js?v=0.38.0"></script>
+  <script src="budget-scenarios.js?v=0.38.0"></script>
+  <script src="savings-forecast.js?v=0.38.0"></script>
 
   <script>
     window.FORCE_MOBILE_VIEW = window.FORCE_MOBILE_VIEW === true;
@@ -352,7 +355,7 @@
     /* Ensure chart.js canvas is responsive */
     .chart-container canvas { max-width: 100% !important; }
   </style>
-  <link rel="stylesheet" href="design-system.css?v=0.37.2"/>
+  <link rel="stylesheet" href="design-system.css?v=0.38.0"/>
   <style id="workspace-shell-critical">
     /* Keep navigation structure intact even if a browser temporarily holds an older stylesheet. */
     @media (min-width: 1101px) {
@@ -376,7 +379,7 @@
         <img src="assets/msp-logo.svg" alt="" class="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" aria-hidden="true">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Make Some Progress</h1>
-          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.37.2 &mdash; Compact Check Logs</span></p>
+          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.0 &mdash; Paydays &amp; Scenarios</span></p>
         </div>
       </div>
       <div class="actions app-actions flex items-center gap-2 flex-wrap">
@@ -404,7 +407,7 @@
       <button class="tab-btn" data-tab="search-tab" data-nav-icon="◷">Expense History</button>
       <button class="tab-btn" data-tab="mobile-budget-tab" data-nav-icon="▯">Mobile Budget</button>
       <button class="tab-btn" data-tab="ai-agent-tab" data-nav-icon="✦">AI Workspace</button>
-      <div class="app-nav-footer hidden"><span>v0.37.2</span><small>Compact check logs</small></div>
+      <div class="app-nav-footer hidden"><span>v0.38.0</span><small>Paydays &amp; scenarios</small></div>
     </div>
 
     <div id="tab-contents" class="app-main">
@@ -481,13 +484,37 @@
             <h3 class="text-lg font-semibold text-white">New Check Log</h3>
             <div class="flex gap-2 flex-wrap items-center">
               <label class="text-sm flex items-center gap-2 text-slate-400">
-                Paycheck Date:
+                Expected funds available:
                 <input type="date" id="newCheckDate" class="text-sm w-40">
+              </label>
+              <label class="text-sm text-slate-400">Early access (calendar days, semimonthly)
+                <input type="number" id="earlyAccessDays" min="0" max="7" step="1" value="0" class="text-sm w-20">
+              </label>
+              <label class="text-sm text-slate-400">Actual deposit date (optional)
+                <input type="date" id="actualDepositDate" class="text-sm w-40">
+              </label>
+              <label class="text-sm text-slate-400">Cadence
+                <select id="paycheckCadence"><option value="biweekly">Every 14 days</option><option value="semimonthly">15th / 30th (last day in February)</option></select>
+              </label>
+              <label class="text-sm text-slate-400">Next paycheck (optional)
+                <input type="date" id="nextPaycheckDate" class="text-sm w-40">
               </label>
               <button class="btn btn-primary btn-sm" id="addCheckBtn">+ Log Paycheck</button>
             </div>
           </div>
         </div>
+        <p id="paycheckPeriodPreview" class="text-sm text-slate-400 mt-3" aria-live="polite"></p>
+        <details class="card p-5 mt-4"><summary class="cursor-pointer font-semibold">What if? Three-month spending preview</summary>
+          <p class="text-sm text-slate-400 my-3">Projections from scheduled expenses only. Enter monthly take-home income. These controls never change your records or balances. Variable spending, taxes and sale proceeds are not inferred.</p>
+          <div class="flex flex-wrap gap-3">
+            <label>Starting month<input id="scenarioMonth" type="month"></label>
+            <label>Monthly take-home income<input id="scenarioIncome" type="number" min="0" step="0.01" value="0"></label>
+            <label>Category<select id="scenarioCategory"><option value="">No category override</option><option>Transportation</option><option>Housing</option><option>Utilities</option><option>Food</option><option>Other</option></select></label>
+            <label>Replace category total / month<input id="scenarioCategoryAmount" type="number" min="0" step="0.01" placeholder="Unchanged"></label>
+          </div>
+          <label class="block mt-3">Exclude one recurring expense (for example, a sold car)<select id="scenarioExclude"><option value="">None</option></select></label>
+          <div id="scenarioResults" class="mt-3 overflow-x-auto" aria-live="polite"></div>
+        </details>
         <div id="checkLogHistory" class="mt-4 space-y-4"></div>
       </div>
 
@@ -982,7 +1009,7 @@
         <div id="patchNotesSection">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 class="text-sm font-semibold text-slate-300">Patch Notes</h3>
-            <span class="release-current-badge">Current: v0.37.2</span>
+            <span class="release-current-badge">Current: v0.38.0</span>
           </div>
           <p class="text-xs text-slate-500 mb-3">Open a release to review its improvements, fixes, and quality updates.</p>
           <div id="patchNotesList" class="patch-notes-list"></div>
@@ -1003,7 +1030,45 @@
     const LLM_CHAT_HISTORY_KEY = 'make-some-progress-ai-chat-history-v1';
     const LLM_CHAT_HISTORY_LIMIT = 100;
     const AI_LOG_KEY = 'make-some-progress-ai-logs-v1';
+    const accountIsolation = AccountIsolation.create(localStorage, [STORAGE_KEY, OLD_DASHBOARD_KEY, OLD_CHECKLOG_KEY, LLM_CHAT_HISTORY_KEY, AI_LOG_KEY, LLM_CONFIG_KEY]);
+    let authAttempt = 0;
+    let localLogoutRequested = false;
+    let accountStorageBlocked = false;
+    function selectAccount(userId) {
+      const next = userId || 'signed-out';
+      if (accountIsolation.owner() === next && !accountStorageBlocked) return;
+      if (state.checkTracker && !accountStorageBlocked) { saveState(); saveLlmChatHistory(); }
+      try { accountIsolation.switchTo(userId); }
+      catch (error) {
+        accountStorageBlocked = true;
+        state = JSON.parse(JSON.stringify(DEFAULT_STATE)); llmChatHistory = []; pendingAgentConfirmation = null;
+        document.querySelectorAll('[id$="Modal"]').forEach(modal => { modal.classList.add('hidden'); modal.classList.remove('flex'); });
+        renderAll(); renderLlmChat(); renderAiLogs(); updateLlmSettingsUI();
+        alert('Account data is hidden. Local recovery could not be saved; original cached records are preserved.');
+        throw error;
+      }
+      accountStorageBlocked = false;
+      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      llmChatHistory = []; pendingAgentConfirmation = null;
+      document.querySelectorAll('[id$="Modal"]').forEach(modal => { modal.classList.add('hidden'); modal.classList.remove('flex'); });
+      confirmCallback = null;
+      loadState(); loadLlmChatHistory();
+      ['llmChatInput', 'llmFloatInput', 'loginPassword', 'signupPassword', 'signupConfirmPassword', 'scenarioIncome', 'scenarioCategoryAmount', 'nextPaycheckDate'].forEach(id => { const input = document.getElementById(id); if (input) input.value = ''; });
+      document.getElementById('scenarioExclude').value = '';
+      document.getElementById('scenarioCategory').value = '';
+      renderLlmChat(); renderAiLogs(); updateLlmSettingsUI();
+      document.getElementById('paycheckCadence').value = state.checkTracker.paycheckCadence || 'biweekly';
+      document.getElementById('earlyAccessDays').value = state.checkTracker.earlyAccessDays || 0;
+      document.getElementById('actualDepositDate').value = '';
+      document.getElementById('newCheckDate').value = getNextCheckStartDate();
+      renderAll();
+    }
     const RELEASE_NOTES = [
+      {version:'v0.38.0',title:'Paydays, Scenarios & Account Privacy',date:'October 10, 2026',summary:'Separates scheduled payday from expected early availability, protects paid history and isolates each account.',sections:[
+        {title:'Paycheck planning',items:['Choose 15th/30th paydays with configurable early access or a 14-day cadence.','Preview boundaries, override actual deposit dates and prevent overlapping new checks.','Expected income remains unreceived; bank timing around weekends and holidays is not assumed.']},
+        {title:'Records and privacy',items:['Preserve paid costs and dates and keep month-end due days through short months.','Clear active financial data, AI chat and logs on account changes, preserving local recovery snapshots.','Prevent previous-account uploads and discard stale cloud, bank and AI responses.']},
+        {title:'Scenario previews',items:['Explore three months of scheduled spending with category overrides or a recurring-expense exclusion without changing records.','New savings plans start unconfigured; existing stored plans remain intact.']}
+      ]},
       {
         version: 'v0.37.2',
         title: 'Compact Check Logs',
@@ -1269,16 +1334,16 @@
       { value: 'annual', label: 'Yearly' }
     ];
 
-    function getNextDueDate(firstDueDate, interval, afterDate = null) {
-      return BillScheduler.getNextDueDate(firstDueDate, interval, afterDate || new Date());
+    function getNextDueDate(firstDueDate, interval, afterDate = null, dueDay = null) {
+      return BillScheduler.getNextDueDate(firstDueDate, interval, afterDate || new Date(), dueDay);
     }
 
     function advanceDate(date, interval) {
       return BillScheduler.advanceDate(date, interval);
     }
 
-    function getCycleDateForPayment(firstDueDate, interval, paymentDate) {
-      return BillScheduler.getOccurrenceOnOrBefore(firstDueDate, interval, paymentDate);
+    function getCycleDateForPayment(firstDueDate, interval, paymentDate, dueDay = null) {
+      return BillScheduler.getOccurrenceOnOrBefore(firstDueDate, interval, paymentDate, dueDay);
     }
 
     function getBillStatus(bill) {
@@ -1293,7 +1358,7 @@
         return { status: 'upcoming', text: 'Upcoming', nextDue: thisMonthDue };
       }
 
-      const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval);
+      const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, null, bill.dueDay);
       if (!nextDue) return { status: 'upcoming', text: 'Upcoming', nextDue: null };
 
       const today = new Date();
@@ -1302,11 +1367,11 @@
 
       // Check if last payment covers the current cycle
       if (bill.lastPaidDate) {
-        const cycleDate = getCycleDateForPayment(bill.firstDueDate, bill.recurrenceInterval, bill.lastPaidDate);
+        const cycleDate = getCycleDateForPayment(bill.firstDueDate, bill.recurrenceInterval, bill.lastPaidDate, bill.dueDay);
         if (cycleDate && cycleDate.getTime() >= nextDue.getTime() - (1000 * 60 * 60 * 24)) {
           // This cycle is paid, show next
           const followingDay = new Date(nextDue); followingDay.setDate(followingDay.getDate() + 1);
-          const afterNext = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, followingDay);
+          const afterNext = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, followingDay, bill.dueDay);
           const nextDiff = Math.ceil((afterNext - today) / (1000 * 60 * 60 * 24));
           return { status: 'paid', text: 'Paid', nextDue: afterNext };
         }
@@ -1325,12 +1390,23 @@
 
     function getSupabaseClient() {
       if (!SUPABASE_URL || !SUPABASE_ANON || !window.supabase) return null;
-      if (!NXU_SB.client) NXU_SB.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      if (!NXU_SB.client) {
+        NXU_SB.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        NXU_SB.client.auth.onAuthStateChange((event, session) => {
+          if (event === 'SIGNED_OUT') { clearDataOnLogout(); return; }
+          if (!localLogoutRequested && session?.user?.id && session.user.id !== accountIsolation.owner()) {
+            clearDataOnLogout(false);
+            // Supabase callbacks stay synchronous; verified account reads run afterwards.
+            setTimeout(async () => { await updateAuthUI(); await syncDataFromCloud(true); }, 0);
+          }
+        });
+      }
       return NXU_SB.client;
     }
 
     // ===================== LOAD / SAVE STATE =====================
     function loadState() {
+      if (accountStorageBlocked) { state = JSON.parse(JSON.stringify(DEFAULT_STATE)); return; }
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         state = JSON.parse(saved);
@@ -1408,6 +1484,7 @@
     }
 
     function saveState() {
+      if (accountStorageBlocked) return;
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
       catch (e) { console.error('Failed to save state:', e); }
     }
@@ -1541,9 +1618,12 @@
     }
 
     async function syncBankTransactionReviewToCloud(tx) {
+      const requestToken = accountIsolation.token(), requestOwner = accountIsolation.owner();
       try {
         const client = getSupabaseClient();
         if (!client || !(await isUserAuthenticated()) || !isPlaidBankUserAllowed()) return;
+        const { data: verified } = await client.auth.getUser();
+        if (accountStorageBlocked || !accountIsolation.valid(requestToken) || verified?.user?.id !== requestOwner) return;
         await client
           .from('bank_transactions')
           .update({
@@ -1555,6 +1635,7 @@
             updated_at: new Date().toISOString()
           })
           .eq('provider', tx.provider || 'plaid')
+          .eq('user_id', requestOwner)
           .eq('provider_transaction_id', tx.id);
       } catch (err) {
         console.warn('Could not save bank transaction review fields to Supabase.', err);
@@ -1635,9 +1716,11 @@
     }
 
     async function invokeBankFunction(name, body = {}) {
+      const requestToken = accountIsolation.token(), requestOwner = accountIsolation.owner();
       const client = getSupabaseClient();
       if (!client) throw new Error('Supabase is not available.');
       const { data: sessionData } = await client.auth.getSession();
+      if (accountStorageBlocked || !accountIsolation.valid(requestToken) || sessionData?.session?.user?.id !== requestOwner) throw new Error('Account changed. Reopen bank settings before continuing.');
       if (!sessionData?.session) throw new Error('Please log in before using bank sync.');
       if (!isPlaidBankUserAllowed(sessionData.session.user?.email)) {
         throw new Error(`Plaid bank linking is restricted to ${PLAID_ALLOWED_EMAIL}.`);
@@ -1659,6 +1742,7 @@
       }
 
       const text = await response.text();
+      if (!accountIsolation.valid(requestToken) || accountIsolation.owner() !== requestOwner) throw new Error('Account changed; the previous bank response was discarded.');
       let data = {};
       try { data = text ? JSON.parse(text) : {}; } catch (err) { data = { error: text }; }
       if (response.status === 404) {
@@ -1673,17 +1757,21 @@
     }
 
     async function connectBankAccount() {
+      const accountToken = accountIsolation.token();
       try {
         if (!(await isUserAuthenticated())) { window.showToast('Please log in to connect a bank account.', 'error'); return; }
         if (!isPlaidBankUserAllowed()) { window.showToast(`Plaid bank linking is restricted to ${PLAID_ALLOWED_EMAIL}.`, 'error'); return; }
         if (!window.Plaid) { window.showToast('Plaid Link did not load. Check your connection and try again.', 'error'); return; }
         const { link_token } = await invokeBankFunction('plaid-create-link-token', { startDate: BANK_IMPORT_START_DATE });
+        if (!accountIsolation.valid(accountToken)) return;
         if (!link_token) throw new Error('Plaid did not return a link token.');
         const handler = window.Plaid.create({
           token: link_token,
           onSuccess: async (public_token, metadata) => {
             try {
+              if (!accountIsolation.valid(accountToken)) return;
               await invokeBankFunction('plaid-exchange-public-token', { public_token, metadata });
+              if (!accountIsolation.valid(accountToken)) return;
               getBankImportState().connected = true;
               getBankImportState().institutionName = metadata?.institution?.name || 'Connected bank';
               saveState();
@@ -1939,7 +2027,7 @@
 
     function getLlmConfig() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(LLM_CONFIG_KEY) || '{}');
+        const parsed = accountStorageBlocked ? {} : JSON.parse(localStorage.getItem(LLM_CONFIG_KEY) || '{}');
         return {
           provider: parsed.provider || 'gemini',
           model: parsed.model || LLM_PROVIDER_MODELS.gemini[0].value,
@@ -2066,6 +2154,7 @@
     }
 
     function getAiLogs() {
+      if (accountStorageBlocked) return [];
       try {
         const logs = JSON.parse(localStorage.getItem(AI_LOG_KEY) || '[]');
         return Array.isArray(logs) ? logs : [];
@@ -2075,6 +2164,7 @@
     }
 
     function addAiLog(level, event, message, details = {}) {
+      if (accountStorageBlocked) return null;
       try {
         const entry = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -2460,6 +2550,7 @@
     }
 
     function saveLlmChatHistory() {
+      if (accountStorageBlocked) return;
       try {
         localStorage.setItem(LLM_CHAT_HISTORY_KEY, JSON.stringify(llmChatHistory.slice(-LLM_CHAT_HISTORY_LIMIT)));
       } catch (e) {
@@ -2509,6 +2600,7 @@
     }
 
     async function handleLlmChatSubmit(e) {
+      const accountToken = accountIsolation.token();
       e.preventDefault();
       const form = e.target;
       const input = form?.querySelector('.ai-chat-input') || document.getElementById('llmChatInput');
@@ -2549,6 +2641,7 @@
           { role: 'system', content: getAgentContext() },
           ...llmChatHistory.slice(-profile.historyLimit).map(m => ({ role: m.role, content: m.content }))
         ], true);
+        if (!accountIsolation.valid(accountToken)) return;
         const plan = parseAgentResponse(raw);
         const resolvedPlan = resolveAgentPlan(plan, text);
         addAiLog('info', 'llm_plan_resolved', 'LLM response parsed and resolved into app actions.', {
@@ -2559,6 +2652,7 @@
         const result = await applyAgentActions(resolvedPlan.actions || []);
         updateLlmMessage(pendingMessage, formatAgentActionReport(resolvedPlan.reply || 'Done.', result));
       } catch (err) {
+        if (!accountIsolation.valid(accountToken)) return;
         addAiLog('error', 'llm_request_failed', err.message || 'AI request failed.', { provider: config.provider, model: getActiveLlmModel(config) });
         const fallback = parseAgentFallback(text);
         if (fallback.actions.length) {
@@ -2834,18 +2928,7 @@
     }
 
     function getNextCheckStartDate() {
-      const logs = state.checkTracker?.checkLogs || [];
-      if (!logs.length) return new Date().toISOString().split('T')[0];
-      const sorted = [...logs].filter(l => l.startDate || l.endDate).sort((a, b) => {
-        const aDate = new Date((a.startDate || a.endDate) + 'T00:00:00');
-        const bDate = new Date((b.startDate || b.endDate) + 'T00:00:00');
-        return bDate - aDate;
-      });
-      const latest = sorted[0];
-      if (!latest) return new Date().toISOString().split('T')[0];
-      const base = latest.endDate ? new Date(latest.endDate + 'T00:00:00') : new Date(latest.startDate + 'T00:00:00');
-      base.setDate(base.getDate() + (latest.endDate ? 1 : 14));
-      return formatDateYMD(base);
+      return PaycheckPlanner.suggestNextStart(state.checkTracker?.checkLogs || [], state.checkTracker?.paycheckCadence, new Date(), state.checkTracker?.earlyAccessDays);
     }
 
     function normalizeYear(yearText) {
@@ -3260,7 +3343,10 @@
     function createCheckLogFromAgent(action) {
       const startDate = resolveAgentDate(action.startDate || action.paycheckDate || action.date || action.when) || getNextCheckStartDate();
       const start = new Date(startDate + 'T00:00:00');
-      const endDate = resolveAgentDate(action.endDate) || formatDateYMD(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 13));
+      const range = PaycheckPlanner.period(startDate, action.cadence || state.checkTracker.paycheckCadence, action.nextPaycheckDate, state.checkTracker.earlyAccessDays);
+      const endDate = resolveAgentDate(action.endDate) || range.endDate;
+      if (endDate < startDate) throw new Error('Check end date must be on or after its start.');
+      PaycheckPlanner.assertNoOverlap(state.checkTracker.checkLogs, { startDate, endDate });
       const logs = state.checkTracker.checkLogs;
       const newId = logs.length > 0 ? Math.max(...logs.map(l => l.id || 0)) + 1 : 1;
       const log = {
@@ -3464,7 +3550,7 @@
     function getBillDuesForLog(bill, log) {
       if (!log?.startDate || !log?.endDate) return [];
       if (bill.firstDueDate && bill.recurrenceInterval) {
-        return BillScheduler.getOccurrencesInRange(bill.firstDueDate, bill.recurrenceInterval, log.startDate, log.endDate);
+        return BillScheduler.getOccurrencesInRange(bill.firstDueDate, bill.recurrenceInterval, log.startDate, log.endDate, bill.dueDay);
       }
       const dates = [];
       const start = new Date(log.startDate + 'T00:00:00');
@@ -4137,6 +4223,9 @@
     // ===================== CLOUD SYNC =====================
     async function saveDataToCloud(options = {}) {
       const silent = !!options.silent;
+      const requestToken = accountIsolation.token();
+      const requestOwner = accountIsolation.owner();
+      const payload = JSON.parse(JSON.stringify(state));
       const client = getSupabaseClient(); if (!client) return { status: 'skipped', reason: 'Supabase is not configured.' };
       try {
         const { data: userData, error: authError } = await client.auth.getUser();
@@ -4145,7 +4234,9 @@
           if (!silent) alert('You must be logged in to save your data.');
           return { status: 'error', reason };
         }
-        const { error } = await client.from('dashboard_data').upsert({ user_id: userData.user.id, data: state }, { onConflict: 'user_id' });
+        if (accountStorageBlocked || !accountIsolation.valid(requestToken) || requestOwner !== userData.user.id) return { status: 'skipped', reason: 'Account changed. Load the account before saving.' };
+        const { error } = await client.from('dashboard_data').upsert({ user_id: requestOwner, data: payload }, { onConflict: 'user_id' });
+        if (!accountIsolation.valid(requestToken)) return { status: 'skipped', reason: 'Account changed.' };
         if (error) {
           if (!silent) alert('Failed to save data to cloud.');
           return { status: 'error', reason: error.message || 'Failed to save data to cloud.' };
@@ -4159,11 +4250,16 @@
     }
 
     async function syncDataFromCloud(isAutoSync = false) {
+      const initialToken = accountIsolation.token();
       const client = getSupabaseClient(); if (!client) return;
       try {
         const { data: userData, error: authError } = await client.auth.getUser();
+        if (!accountIsolation.valid(initialToken)) return;
         if (authError || !userData?.user) { if (!isAutoSync) alert('You must be logged in to sync.'); return; }
+        selectAccount(userData.user.id);
+        const requestToken = accountIsolation.token();
         const { data, error } = await client.from('dashboard_data').select('data').eq('user_id', userData.user.id).maybeSingle();
+        if (!accountIsolation.valid(requestToken) || accountIsolation.owner() !== userData.user.id) return;
         if (error) { if (!isAutoSync) alert('Failed to fetch data.'); return; }
         if (data?.data) {
           state = data.data;
@@ -4177,17 +4273,21 @@
     }
 
     async function updateAuthUI() {
+      const requestToken = accountIsolation.token();
       const client = getSupabaseClient(); if (!client) return;
       try {
         const { data: userData, error } = await client.auth.getUser();
+        if (!accountIsolation.valid(requestToken)) return;
+        selectAccount(!error && userData?.user ? userData.user.id : null);
         const authBtn = document.getElementById('authBtn'); if (!authBtn) return;
         authBtn.onclick = null;
         if (!error && userData?.user) {
           NXU_SB.currentUserEmail = userData.user.email || '';
           authBtn.textContent = 'Log Out';
           authBtn.onclick = async () => {
-            try { await client.auth.signOut(); } catch (e) {}
-            clearDataOnLogout(); updateAuthUI();
+            clearDataOnLogout();
+            try { const { error } = await client.auth.signOut(); if (error) throw error; await updateAuthUI(); }
+            catch (e) { alert('Local data is hidden. Sign-out could not finish; retry when connected.'); }
           };
         } else {
           NXU_SB.currentUserEmail = '';
@@ -4570,7 +4670,7 @@
           schedulePreviewEl.textContent = 'Choose a first due date to see the next payments.';
           return;
         }
-        const dates = [0, 1, 2].map(index => BillScheduler.occurrenceAt(firstDate, intervalEl.value, index));
+        const dates = [0, 1, 2].map(index => BillScheduler.occurrenceAt(firstDate, intervalEl.value, index, dueDayEl.value));
         schedulePreviewEl.textContent = `Scheduled payments: ${dates.map(date => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })).join(' · ')}`;
       };
       let firstDueDateTouched = false;
@@ -4961,6 +5061,7 @@
                 ${log.name}
                 ${log.startDate && log.endDate ? `<span class="text-xs text-slate-500 font-normal">${formatDateForDisplay(log.startDate)} - ${formatDateForDisplay(log.endDate)}</span>` : ''}
               </h3>
+              ${log.incomeStatus ? `<p class="text-xs text-slate-400 mt-1">Scheduled: ${formatDateForDisplay(log.scheduledPayDate)} · Expected access: ${formatDateForDisplay(log.expectedAvailabilityDate)} · ${log.actualDepositDate ? `Deposit date confirmed: ${formatDateForDisplay(log.actualDepositDate)}` : 'Expected income — receipt not confirmed'}</p>` : ''}
               <div class="flex items-center gap-2 mt-1">
                 <label class="text-xs text-slate-500">Sort:</label>
                 <select class="log-sort-select text-xs w-20">
@@ -5173,7 +5274,7 @@
       else if (diffDays <= 3) { timingText = 'On-time'; timingClass = 'text-emerald-400'; }
       else { timingText = `Late (${diffDays} days after due)`; timingClass = 'text-red-400'; }
       const followingDay = new Date(cycleDate); followingDay.setDate(followingDay.getDate() + 1);
-      const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, followingDay);
+      const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, followingDay, bill.dueDay);
       const content = document.getElementById('paymentInfoContent');
       content.innerHTML = `
         <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
@@ -5207,7 +5308,7 @@
           if (bill.firstDueDate && bill.recurrenceInterval) {
             // Check if this bill is due on this day
             const dayDate = new Date(year, month, day);
-            const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, new Date(year, month, day));
+            const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, new Date(year, month, day), bill.dueDay);
             if (nextDue && nextDue.getFullYear() === year && nextDue.getMonth() === month && nextDue.getDate() === day) {
               dayHtml += `<div class="event event-bill">${bill.name} - ${formatCurrency(bill.amount)}</div>`;
             }
@@ -5890,23 +5991,52 @@
       return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString();
     }
 
+    function refreshPaycheckPreview() {
+      const expected = document.getElementById('newCheckDate').value || getNextCheckStartDate();
+      const start = document.getElementById('actualDepositDate').value || expected;
+      try {
+        const cadence = document.getElementById('paycheckCadence').value;
+        const early = document.getElementById('earlyAccessDays').value;
+        const range = PaycheckPlanner.period(start, cadence, document.getElementById('nextPaycheckDate').value, early);
+        const scheduled = cadence === 'semimonthly' ? PaycheckPlanner.nextPayInfo(expected, early, true).scheduledDate : expected;
+        document.getElementById('paycheckPeriodPreview').textContent = `Scheduled payday: ${formatDateForDisplay(scheduled)}. Expected access: ${formatDateForDisplay(expected)}. Budget period: ${formatDateForDisplay(range.startDate)} through ${formatDateForDisplay(range.endDate)}; next paycheck excluded. Early access is an estimate; weekends and holidays may change bank timing. Logging a plan does not mark income received. Existing checks keep their dates.`;
+      } catch (error) { document.getElementById('paycheckPeriodPreview').textContent = error.message; }
+    }
     function addBiWeeklyCheck() {
       const dateInput = document.getElementById('newCheckDate');
-      if (!dateInput?.value) { alert('Please select a paycheck date.'); return; }
-      const parts = dateInput.value.split('-').map(Number);
-      if (parts.length < 3 || parts.some(isNaN)) { alert('Invalid date format.'); return; }
-      const payDate = new Date(parts[0], parts[1] - 1, parts[2]);
-      const endDate = new Date(payDate); endDate.setDate(endDate.getDate() + 13);
-      const logs = state.checkTracker.checkLogs;
-      const newId = logs.length > 0 ? Math.max(...logs.map(l => l.id)) + 1 : 1;
-      const log = {
-        id: newId, name: `Check ${logs.length + 1}`, month: payDate.getMonth() + 1, year: payDate.getFullYear(),
-        items: [], sortBy: 'bill', sortOrder: 'asc',
-        startDate: formatDateYMD(payDate), endDate: formatDateYMD(endDate), checkAmount: 0
-      };
-      syncBillsIntoCheckLog(log);
-      logs.push(log);
-      saveState(); renderAll(); dateInput.value = '';
+      try {
+        if (!dateInput.value) throw new Error('Please select a paycheck date.');
+        const cadence = document.getElementById('paycheckCadence').value;
+        const early = Math.min(7, Math.max(0, Math.trunc(Number(document.getElementById('earlyAccessDays').value) || 0)));
+        const actualDepositDate = document.getElementById('actualDepositDate').value;
+        const range = PaycheckPlanner.period(actualDepositDate || dateInput.value, cadence, document.getElementById('nextPaycheckDate').value, early);
+        const logs = state.checkTracker.checkLogs;
+        PaycheckPlanner.assertNoOverlap(logs, range);
+        const payDate = BillScheduler.parseDateOnly(range.startDate);
+        const newId = Math.max(0, ...logs.map(log => Number(log.id) || 0)) + 1;
+        const scheduledPayDate = cadence === 'semimonthly' ? PaycheckPlanner.nextPayInfo(dateInput.value, early, true).scheduledDate : dateInput.value;
+        const log = { id: newId, name: `Check ${newId}`, month: payDate.getMonth() + 1, year: payDate.getFullYear(), items: [], sortBy: 'bill', sortOrder: 'asc', ...range, checkAmount: 0, scheduledPayDate, expectedAvailabilityDate: dateInput.value, actualDepositDate: actualDepositDate || null, incomeStatus: actualDepositDate ? 'deposit-date-confirmed' : 'expected' };
+        syncBillsIntoCheckLog(log);
+        logs.push(log);
+        state.checkTracker.paycheckCadence = cadence;
+        state.checkTracker.earlyAccessDays = early;
+        saveState(); renderAll();
+        dateInput.value = '';
+        document.getElementById('nextPaycheckDate').value = '';
+        document.getElementById('actualDepositDate').value = '';
+        refreshPaycheckPreview();
+      } catch (error) { alert(error.message); }
+    }
+    function renderScenarioPreview() {
+      const month = document.getElementById('scenarioMonth');
+      if (!month.value) month.value = formatDateYMD(new Date()).slice(0, 7);
+      const exclude = document.getElementById('scenarioExclude');
+      const selected = exclude.value;
+      exclude.replaceChildren(new Option('None', ''));
+      (state.checkTracker.bills || []).forEach(bill => exclude.add(new Option(bill.name, String(bill.id))));
+      exclude.value = selected;
+      const rows = BudgetScenarios.project(state.checkTracker, { startDate: month.value + '-01', monthlyIncome: document.getElementById('scenarioIncome').value, category: document.getElementById('scenarioCategory').value, categoryAmount: document.getElementById('scenarioCategoryAmount').value, excludedIds: exclude.value ? [exclude.value] : [] });
+      document.getElementById('scenarioResults').innerHTML = '<table class="w-full text-sm"><thead><tr><th>Month</th><th>Baseline spending</th><th>Scenario spending</th><th>Scenario leftover</th><th>Change in leftover</th></tr></thead><tbody>' + rows.map(row => `<tr><td>${row.month.slice(0, 7)}</td><td>${formatCurrency(row.baseline)}</td><td>${formatCurrency(row.scenario)}</td><td>${formatCurrency(row.scenarioLeft)}</td><td>${formatCurrency(row.difference)}</td></tr>`).join('') + '</tbody></table>';
     }
 
     // ===================== GLOBAL ACTIONS =====================
@@ -5962,19 +6092,14 @@
         state = JSON.parse(JSON.stringify(DEFAULT_STATE)); saveState(); renderAll(); document.getElementById('importFile').value = '';
       });
     }
-    function clearDataOnLogout() {
+    function clearDataOnLogout(explicitLogout = true) {
+      localLogoutRequested = explicitLogout;
+      authAttempt++; accountIsolation.invalidate();
+      selectAccount(null);
       NXU_SB.currentUserEmail = '';
-      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-      saveState(); renderAll();
-      // Hide Google Calendar UI elements on logout
-      const settingsBtn = document.getElementById('settingsBtn');
-      const syncCalBtn = document.getElementById('syncCalendarBtn');
-      const calSyncStatus = document.getElementById('calSyncStatus');
-      if (settingsBtn) settingsBtn.style.display = '';
-      if (syncCalBtn) syncCalBtn.style.display = 'none';
-      if (calSyncStatus) calSyncStatus.style.display = 'none';
-      updateGoogleCalStatus();
+      const authBtn = document.getElementById('authBtn');
+      if (authBtn) { authBtn.textContent = 'Log in/Sign Up'; authBtn.onclick = showAuthModal; }
+      updateBankStatusUI();
     }
 
     let confirmCallback = null;
@@ -6279,7 +6404,7 @@
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (!bill.firstDueDate || !bill.recurrenceInterval) return null;
-      const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, today);
+      const nextDue = getNextDueDate(bill.firstDueDate, bill.recurrenceInterval, today, bill.dueDay);
       if (!nextDue || nextDue < today) return null;
       return nextDue;
     }
@@ -6708,6 +6833,8 @@
       renderBills();
       renderOneTimeExpenses();
       renderCheckLogs();
+      renderScenarioPreview();
+      refreshPaycheckPreview();
       renderBankTransactionsTab();
       renderCalendar();
       renderBillSearch();
@@ -6846,6 +6973,8 @@
 
       // Check logs
       document.getElementById('addCheckBtn').onclick = addBiWeeklyCheck;
+      ['newCheckDate', 'nextPaycheckDate', 'paycheckCadence', 'earlyAccessDays', 'actualDepositDate'].forEach(id => document.getElementById(id).addEventListener('change', refreshPaycheckPreview));
+      ['scenarioMonth', 'scenarioIncome', 'scenarioCategory', 'scenarioCategoryAmount', 'scenarioExclude'].forEach(id => document.getElementById(id).addEventListener('input', renderScenarioPreview));
       document.getElementById('checkLogHistory').addEventListener('input', handleCheckLogInteraction);
       document.getElementById('checkLogHistory').addEventListener('click', handleCheckLogInteraction);
       document.getElementById('bankTxList')?.addEventListener('click', handleBankTransactionsInteraction);
@@ -6891,9 +7020,13 @@
         const password = document.getElementById('loginPassword').value;
         if (!email || !password) { alert('Please fill out all fields.'); return; }
         try {
+          const attempt = ++authAttempt;
+          localLogoutRequested = false;
+          accountIsolation.invalidate();
           const { error } = await client.auth.signInWithPassword({ email, password });
+          if (attempt !== authAttempt) return;
           if (error) { alert(error.message || 'Login failed.'); return; }
-          hideAuthModal(); await updateAuthUI(); await syncDataFromCloud(true); await initGoogleCalUI();
+          hideAuthModal(); await updateAuthUI(); if (attempt !== authAttempt) return; await syncDataFromCloud(true); await initGoogleCalUI();
         } catch (err) { alert('Login failed.'); }
       });
       document.getElementById('signupSubmitBtn')?.addEventListener('click', async () => {
@@ -6904,11 +7037,15 @@
         if (!email || !password || !confirmPassword) { alert('Please fill out all fields.'); return; }
         if (password !== confirmPassword) { alert('Passwords do not match.'); return; }
         try {
+          const attempt = ++authAttempt;
+          localLogoutRequested = false;
+          accountIsolation.invalidate();
           const { data, error } = await client.auth.signUp({ email, password, options: { data: { username: email } } });
+          if (attempt !== authAttempt) return;
           if (error) { alert(error.message || 'Account creation failed.'); return; }
-          if (!data.session) { await client.auth.signInWithPassword({ email, password }); }
-          try { const { data: u } = await client.auth.getUser(); if (u?.user) await client.from('profiles').upsert({ id: u.user.id, email, username: email }, { onConflict: 'id' }); } catch (e) {}
-          hideAuthModal(); await updateAuthUI(); await saveDataToCloud(); await initGoogleCalUI();
+          if (!data.session) { alert('Check your email to confirm your account, then log in.'); return; }
+          try { const { data: u } = await client.auth.getUser(); if (attempt !== authAttempt) return; if (u?.user?.email?.toLowerCase() === email.toLowerCase()) await client.from('profiles').upsert({ id: u.user.id, email, username: email }, { onConflict: 'id' }); } catch (e) {}
+          hideAuthModal(); await updateAuthUI(); if (attempt !== authAttempt) return; await syncDataFromCloud(true); await initGoogleCalUI();
         } catch (err) { alert('Account creation failed.'); }
       });
       document.getElementById('saveToCloudBtn')?.addEventListener('click', saveDataToCloud);
@@ -6958,6 +7095,7 @@
       // Load and render
       await updateAuthUI();
       loadState();
+      if (!['signed-out', 'unassigned'].includes(accountIsolation.owner())) await syncDataFromCloud(true);
       runStartupChecks();
       await handleOAuthCallback();
       await initGoogleCalUI();
@@ -6966,6 +7104,9 @@
       loadLlmChatHistory();
       renderLlmChat();
       updateBankStatusUI();
+      document.getElementById('newCheckDate').value = getNextCheckStartDate();
+      document.getElementById('paycheckCadence').value = state.checkTracker.paycheckCadence || 'biweekly';
+      document.getElementById('earlyAccessDays').value = state.checkTracker.earlyAccessDays || 0;
       renderAll();
       const initialTab = window.shouldDefaultToMobileView() ? 'mobile-budget-tab' : 'dashboard-tab';
       setActiveTab(initialTab);
@@ -7012,6 +7153,6 @@
       }, 1000);
     });
   </script>
-  <script src="mobile-budget.js"></script>
+  <script src="mobile-budget.js?v=0.38.0"></script>
 </body>
 </html>

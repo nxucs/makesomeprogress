@@ -3,13 +3,20 @@ const assert = require('node:assert/strict');
 const SavingsForecast = require('../savings-forecast');
 
 test('default House Fund schedule preserves actual, projected, and planned totals', () => {
-  const forecast = SavingsForecast.calculateForecast(SavingsForecast.createDefaultState(2026));
+  const forecast = SavingsForecast.calculateForecast(SavingsForecast.createExampleState(2026));
 
   assert.equal(forecast.actualTotal, 3200);
   assert.equal(forecast.projectedTotal, 42950);
   assert.equal(forecast.plannedTotal, 43750);
   assert.equal(forecast.pendingCount, 19);
   assert.deepEqual(forecast.goalStatuses[0].projectedHit, { month: 11, label: 'Bonus Check 3' });
+});
+
+test('new-account savings defaults have no imported goals or financial records', () => {
+  const data = SavingsForecast.createDefaultState(2026);
+  assert.deepEqual(data.contributions, []);
+  assert.equal(data.goals[0].target, 0);
+  assert.equal(SavingsForecast.calculateForecast(data).actualTotal, 0);
 });
 
 test('actual contributions replace rather than stack on planned amounts', () => {

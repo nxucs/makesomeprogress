@@ -42,7 +42,7 @@
     return finiteNumber(value, null);
   }
 
-  function createDefaultState(year = 2026) {
+  function createExampleState(year = 2026) {
     const safeYear = Number.isInteger(Number(year)) ? Number(year) : 2026;
     return {
       version: 1,
@@ -56,6 +56,11 @@
       ],
       contributions: DEFAULT_CONTRIBUTIONS.map(item => ({ ...item }))
     };
+  }
+
+  function createDefaultState(year = new Date().getFullYear()) {
+    const example = createExampleState(year);
+    return { ...example, activeGoalId: 'new-goal', goals: [{ id: 'new-goal', name: 'Your savings goal', target: 0, targetDate: `${example.year}-12-31` }], contributions: [] };
   }
 
   function normalizeState(input, fallbackYear = 2026) {
@@ -181,6 +186,7 @@
   return {
     MONTHS,
     createDefaultState,
+    createExampleState,
     normalizeState,
     calculateForecast,
     calculateYearProgress

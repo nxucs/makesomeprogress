@@ -22,7 +22,7 @@
     const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) {
       const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-      return Number.isNaN(date.getTime()) ? null : date;
+      return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]) ? date : null;
     }
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return null;
@@ -42,7 +42,7 @@
     return new Date(year, monthIndex + 1, 0).getDate();
   }
 
-  function occurrenceAt(firstDueDate, interval, index) {
+  function occurrenceAt(firstDueDate, interval, index, dueDay) {
     const anchor = parseDateOnly(firstDueDate);
     if (!anchor || index < 0) return null;
     if (INTERVAL_DAYS[interval]) {
@@ -55,7 +55,7 @@
     const absoluteMonth = anchor.getFullYear() * 12 + anchor.getMonth() + monthStep * index;
     const year = Math.floor(absoluteMonth / 12);
     const month = ((absoluteMonth % 12) + 12) % 12;
-    const day = Math.min(anchor.getDate(), daysInMonth(year, month));
+    const day = Math.min(Number(dueDay) >= 1 && Number(dueDay) <= 31 ? Math.trunc(Number(dueDay)) : anchor.getDate(), daysInMonth(year, month));
     return new Date(year, month, day);
   }
 
@@ -69,7 +69,7 @@
     return Math.max(0, Math.floor(monthDifference / monthStep) - 1);
   }
 
-  function getOccurrencesInRange(firstDueDate, interval, startDate, endDate) {
+  function getOccurrencesInRange(firstDueDate, interval, startDate, endDate, dueDay) {
     const anchor = parseDateOnly(firstDueDate);
     const start = parseDateOnly(startDate);
     const end = parseDateOnly(endDate);
@@ -78,26 +78,26 @@
     const occurrences = [];
     let index = estimateStartingIndex(anchor, interval, start);
     for (let iterations = 0; iterations < 20000; iterations++, index++) {
-      const candidate = occurrenceAt(anchor, interval, index);
+      const candidate = occurrenceAt(anchor, interval, index, dueDay);
       if (!candidate || candidate > end) break;
       if (candidate >= start) occurrences.push(candidate);
     }
     return occurrences;
   }
 
-  function getNextDueDate(firstDueDate, interval, afterDate) {
+  function getNextDueDate(firstDueDate, interval, afterDate, dueDay) {
     const anchor = parseDateOnly(firstDueDate);
     const reference = parseDateOnly(afterDate || new Date());
     if (!anchor || !reference) return null;
     let index = estimateStartingIndex(anchor, interval, reference);
     for (let iterations = 0; iterations < 20000; iterations++, index++) {
-      const candidate = occurrenceAt(anchor, interval, index);
+      const candidate = occurrenceAt(anchor, interval, index, dueDay);
       if (candidate && candidate >= reference) return candidate;
     }
     return null;
   }
 
-  function getOccurrenceOnOrBefore(firstDueDate, interval, dateValue) {
+  function getOccurrenceOnOrBefore(firstDueDate, interval, dateValue, dueDay) {
     const anchor = parseDateOnly(firstDueDate);
     const reference = parseDateOnly(dateValue);
     if (!anchor || !reference) return null;
@@ -105,7 +105,7 @@
     let index = estimateStartingIndex(anchor, interval, reference);
     let previous = new Date(anchor);
     for (let iterations = 0; iterations < 20000; iterations++, index++) {
-      const candidate = occurrenceAt(anchor, interval, index);
+      const candidate = occurrenceAt(anchor, interval, index, dueDay);
       if (!candidate || candidate > reference) break;
       previous = candidate;
     }
@@ -147,6 +147,13 @@
         matched.push(item);
       }
       used.add(item);
+      // A settled occurrence is a financial record, not a live schedule template.
+      if (item.paid) {
+        // Attach identity to legacy rows so a rename cannot duplicate the settled occurrence.
+        item.scheduleSourceType = sourceType;
+        item.scheduleSourceId = schedule.sourceId;
+        continue;
+      }
       item.bill = schedule.name;
       item.cost = Number(schedule.amount) || 0;
       item.category = schedule.category || item.category || 'Other';
