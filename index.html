@@ -10,11 +10,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="bill-scheduler.js?v=0.38.0"></script>
-  <script src="paycheck-planner.js?v=0.38.0"></script>
-  <script src="account-isolation.js?v=0.38.0"></script>
-  <script src="budget-scenarios.js?v=0.38.0"></script>
-  <script src="savings-forecast.js?v=0.38.0"></script>
+  <script src="bill-scheduler.js?v=0.38.1"></script>
+  <script src="paycheck-planner.js?v=0.38.1"></script>
+  <script src="account-isolation.js?v=0.38.1"></script>
+  <script src="budget-scenarios.js?v=0.38.1"></script>
+  <script src="savings-forecast.js?v=0.38.1"></script>
 
   <script>
     window.FORCE_MOBILE_VIEW = window.FORCE_MOBILE_VIEW === true;
@@ -355,7 +355,7 @@
     /* Ensure chart.js canvas is responsive */
     .chart-container canvas { max-width: 100% !important; }
   </style>
-  <link rel="stylesheet" href="design-system.css?v=0.38.0"/>
+  <link rel="stylesheet" href="design-system.css?v=0.38.1"/>
   <style id="workspace-shell-critical">
     /* Keep navigation structure intact even if a browser temporarily holds an older stylesheet. */
     @media (min-width: 1101px) {
@@ -379,7 +379,7 @@
         <img src="assets/msp-logo.svg" alt="" class="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" aria-hidden="true">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Make Some Progress</h1>
-          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.0 &mdash; Paydays &amp; Scenarios</span></p>
+          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.1 &mdash; Simple Check Logging</span></p>
         </div>
       </div>
       <div class="actions app-actions flex items-center gap-2 flex-wrap">
@@ -407,7 +407,7 @@
       <button class="tab-btn" data-tab="search-tab" data-nav-icon="◷">Expense History</button>
       <button class="tab-btn" data-tab="mobile-budget-tab" data-nav-icon="▯">Mobile Budget</button>
       <button class="tab-btn" data-tab="ai-agent-tab" data-nav-icon="✦">AI Workspace</button>
-      <div class="app-nav-footer hidden"><span>v0.38.0</span><small>Paydays &amp; scenarios</small></div>
+      <div class="app-nav-footer hidden"><span>v0.38.1</span><small>Simple check logging</small></div>
     </div>
 
     <div id="tab-contents" class="app-main">
@@ -484,26 +484,36 @@
             <h3 class="text-lg font-semibold text-white">New Check Log</h3>
             <div class="flex gap-2 flex-wrap items-center">
               <label class="text-sm flex items-center gap-2 text-slate-400">
-                Expected funds available:
+                Paycheck date:
                 <input type="date" id="newCheckDate" class="text-sm w-40">
-              </label>
-              <label class="text-sm text-slate-400">Early access (calendar days, semimonthly)
-                <input type="number" id="earlyAccessDays" min="0" max="7" step="1" value="0" class="text-sm w-20">
-              </label>
-              <label class="text-sm text-slate-400">Actual deposit date (optional)
-                <input type="date" id="actualDepositDate" class="text-sm w-40">
-              </label>
-              <label class="text-sm text-slate-400">Cadence
-                <select id="paycheckCadence"><option value="biweekly">Every 14 days</option><option value="semimonthly">15th / 30th (last day in February)</option></select>
-              </label>
-              <label class="text-sm text-slate-400">Next paycheck (optional)
-                <input type="date" id="nextPaycheckDate" class="text-sm w-40">
               </label>
               <button class="btn btn-primary btn-sm" id="addCheckBtn">+ Log Paycheck</button>
             </div>
           </div>
+          <p id="paycheckPeriodPreview" class="text-sm text-slate-400 mt-3" aria-live="polite"></p>
+          <details id="paycheckAdvanced" class="mt-3">
+            <summary class="cursor-pointer text-sm text-slate-400">Optional schedule settings</summary>
+            <p class="text-xs text-slate-500 mt-3">Set your schedule once. Logging a paycheck only needs its date. Saved settings apply to new checks; existing records keep their dates.</p>
+            <div class="flex flex-wrap gap-3 mt-3 items-end">
+              <label class="text-sm text-slate-400">Cadence
+                <select id="paycheckCadence"><option value="biweekly">Every 14 days</option><option value="semimonthly">15th / 30th (last day in February)</option></select>
+              </label>
+              <label class="text-sm text-slate-400">Early access (calendar days, semimonthly)
+                <input type="number" id="earlyAccessDays" min="0" max="7" step="1" value="0" class="text-sm w-20">
+              </label>
+              <button class="btn btn-secondary btn-sm" id="savePaycheckScheduleBtn" type="button">Save schedule</button>
+            </div>
+            <p id="paycheckScheduleDetails" class="text-xs text-slate-500 mt-3" aria-live="polite"></p>
+            <div class="flex flex-wrap gap-3 mt-3">
+              <label class="text-sm text-slate-400">Actual deposit date override (optional)
+                <input type="date" id="actualDepositDate" class="text-sm w-40">
+              </label>
+              <label class="text-sm text-slate-400">Next paycheck override (optional)
+                <input type="date" id="nextPaycheckDate" class="text-sm w-40">
+              </label>
+            </div>
+          </details>
         </div>
-        <p id="paycheckPeriodPreview" class="text-sm text-slate-400 mt-3" aria-live="polite"></p>
         <details class="card p-5 mt-4"><summary class="cursor-pointer font-semibold">What if? Three-month spending preview</summary>
           <p class="text-sm text-slate-400 my-3">Projections from scheduled expenses only. Enter monthly take-home income. These controls never change your records or balances. Variable spending, taxes and sale proceeds are not inferred.</p>
           <div class="flex flex-wrap gap-3">
@@ -1009,7 +1019,7 @@
         <div id="patchNotesSection">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 class="text-sm font-semibold text-slate-300">Patch Notes</h3>
-            <span class="release-current-badge">Current: v0.38.0</span>
+            <span class="release-current-badge">Current: v0.38.1</span>
           </div>
           <p class="text-xs text-slate-500 mb-3">Open a release to review its improvements, fixes, and quality updates.</p>
           <div id="patchNotesList" class="patch-notes-list"></div>
@@ -1060,10 +1070,12 @@
       document.getElementById('paycheckCadence').value = state.checkTracker.paycheckCadence || 'biweekly';
       document.getElementById('earlyAccessDays').value = state.checkTracker.earlyAccessDays || 0;
       document.getElementById('actualDepositDate').value = '';
+      document.getElementById('paycheckAdvanced').open = false;
       document.getElementById('newCheckDate').value = getNextCheckStartDate();
       renderAll();
     }
     const RELEASE_NOTES = [
+      {version:'v0.38.1',title:'Simple Check Logging',date:'October 10, 2026',summary:'Enter one date and log your paycheck using the saved schedule.',sections:[{title:'Less setup each payday',items:['The default New Check Log form contains only the paycheck date and Log button.','Cadence, early access and one-off overrides are tucked into optional schedule settings.','Save the schedule once; future new checks use it without rewriting existing history.']} ]},
       {version:'v0.38.0',title:'Paydays, Scenarios & Account Privacy',date:'October 10, 2026',summary:'Separates scheduled payday from expected early availability, protects paid history and isolates each account.',sections:[
         {title:'Paycheck planning',items:['Choose 15th/30th paydays with configurable early access or a 14-day cadence.','Preview boundaries, override actual deposit dates and prevent overlapping new checks.','Expected income remains unreceived; bank timing around weekends and holidays is not assumed.']},
         {title:'Records and privacy',items:['Preserve paid costs and dates and keep month-end due days through short months.','Clear active financial data, AI chat and logs on account changes, preserving local recovery snapshots.','Prevent previous-account uploads and discard stale cloud, bank and AI responses.']},
@@ -5995,19 +6007,31 @@
       const expected = document.getElementById('newCheckDate').value || getNextCheckStartDate();
       const start = document.getElementById('actualDepositDate').value || expected;
       try {
-        const cadence = document.getElementById('paycheckCadence').value;
-        const early = document.getElementById('earlyAccessDays').value;
+        const cadence = state.checkTracker.paycheckCadence || 'biweekly';
+        const early = state.checkTracker.earlyAccessDays || 0;
         const range = PaycheckPlanner.period(start, cadence, document.getElementById('nextPaycheckDate').value, early);
         const scheduled = cadence === 'semimonthly' ? PaycheckPlanner.nextPayInfo(expected, early, true).scheduledDate : expected;
-        document.getElementById('paycheckPeriodPreview').textContent = `Scheduled payday: ${formatDateForDisplay(scheduled)}. Expected access: ${formatDateForDisplay(expected)}. Budget period: ${formatDateForDisplay(range.startDate)} through ${formatDateForDisplay(range.endDate)}; next paycheck excluded. Early access is an estimate; weekends and holidays may change bank timing. Logging a plan does not mark income received. Existing checks keep their dates.`;
+        document.getElementById('paycheckPeriodPreview').textContent = `Covers ${formatDateForDisplay(range.startDate)} through ${formatDateForDisplay(range.endDate)}. Income is not marked received.`;
+        document.getElementById('paycheckScheduleDetails').textContent = `Scheduled payday: ${formatDateForDisplay(scheduled)}. Expected access: ${formatDateForDisplay(expected)}. Next paycheck excluded. Early access is an estimate; weekends and holidays may change bank timing. Use the optional overrides only when needed.`;
       } catch (error) { document.getElementById('paycheckPeriodPreview').textContent = error.message; }
+    }
+    function savePaycheckSchedule() {
+      const cadence = document.getElementById('paycheckCadence').value;
+      const early = Math.min(7, Math.max(0, Math.trunc(Number(document.getElementById('earlyAccessDays').value) || 0)));
+      state.checkTracker.paycheckCadence = cadence;
+      state.checkTracker.earlyAccessDays = early;
+      saveState();
+      saveDataToCloud({ silent: true });
+      document.getElementById('paycheckAdvanced').open = false;
+      refreshPaycheckPreview();
+      window.showToast('Schedule saved. Existing checks are unchanged.', 'success');
     }
     function addBiWeeklyCheck() {
       const dateInput = document.getElementById('newCheckDate');
       try {
         if (!dateInput.value) throw new Error('Please select a paycheck date.');
-        const cadence = document.getElementById('paycheckCadence').value;
-        const early = Math.min(7, Math.max(0, Math.trunc(Number(document.getElementById('earlyAccessDays').value) || 0)));
+        const cadence = state.checkTracker.paycheckCadence || 'biweekly';
+        const early = state.checkTracker.earlyAccessDays || 0;
         const actualDepositDate = document.getElementById('actualDepositDate').value;
         const range = PaycheckPlanner.period(actualDepositDate || dateInput.value, cadence, document.getElementById('nextPaycheckDate').value, early);
         const logs = state.checkTracker.checkLogs;
@@ -6973,6 +6997,7 @@
 
       // Check logs
       document.getElementById('addCheckBtn').onclick = addBiWeeklyCheck;
+      document.getElementById('savePaycheckScheduleBtn').onclick = savePaycheckSchedule;
       ['newCheckDate', 'nextPaycheckDate', 'paycheckCadence', 'earlyAccessDays', 'actualDepositDate'].forEach(id => document.getElementById(id).addEventListener('change', refreshPaycheckPreview));
       ['scenarioMonth', 'scenarioIncome', 'scenarioCategory', 'scenarioCategoryAmount', 'scenarioExclude'].forEach(id => document.getElementById(id).addEventListener('input', renderScenarioPreview));
       document.getElementById('checkLogHistory').addEventListener('input', handleCheckLogInteraction);
@@ -7153,6 +7178,6 @@
       }, 1000);
     });
   </script>
-  <script src="mobile-budget.js?v=0.38.0"></script>
+  <script src="mobile-budget.js?v=0.38.1"></script>
 </body>
 </html>
