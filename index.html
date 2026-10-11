@@ -10,11 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="bill-scheduler.js?v=0.38.1"></script>
-  <script src="paycheck-planner.js?v=0.38.1"></script>
-  <script src="account-isolation.js?v=0.38.1"></script>
-  <script src="budget-scenarios.js?v=0.38.1"></script>
-  <script src="savings-forecast.js?v=0.38.1"></script>
+  <script src="calendar-preview.js?v=0.38.2"></script>
+  <script src="bill-scheduler.js?v=0.38.2"></script>
+  <script src="paycheck-planner.js?v=0.38.2"></script>
+  <script src="account-isolation.js?v=0.38.2"></script>
+  <script src="budget-scenarios.js?v=0.38.2"></script>
+  <script src="savings-forecast.js?v=0.38.2"></script>
 
   <script>
     window.FORCE_MOBILE_VIEW = window.FORCE_MOBILE_VIEW === true;
@@ -355,7 +356,7 @@
     /* Ensure chart.js canvas is responsive */
     .chart-container canvas { max-width: 100% !important; }
   </style>
-  <link rel="stylesheet" href="design-system.css?v=0.38.1"/>
+  <link rel="stylesheet" href="design-system.css?v=0.38.2"/>
   <style id="workspace-shell-critical">
     /* Keep navigation structure intact even if a browser temporarily holds an older stylesheet. */
     @media (min-width: 1101px) {
@@ -379,7 +380,7 @@
         <img src="assets/msp-logo.svg" alt="" class="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" aria-hidden="true">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Make Some Progress</h1>
-          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.1 &mdash; Simple Check Logging</span></p>
+          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.2 &mdash; Calendar Review</span></p>
         </div>
       </div>
       <div class="actions app-actions flex items-center gap-2 flex-wrap">
@@ -407,7 +408,7 @@
       <button class="tab-btn" data-tab="search-tab" data-nav-icon="◷">Expense History</button>
       <button class="tab-btn" data-tab="mobile-budget-tab" data-nav-icon="▯">Mobile Budget</button>
       <button class="tab-btn" data-tab="ai-agent-tab" data-nav-icon="✦">AI Workspace</button>
-      <div class="app-nav-footer hidden"><span>v0.38.1</span><small>Simple check logging</small></div>
+      <div class="app-nav-footer hidden"><span>v0.38.2</span><small>Calendar review</small></div>
     </div>
 
     <div id="tab-contents" class="app-main">
@@ -536,7 +537,7 @@
             <h3 class="text-lg font-semibold text-white">Recurring Expenses</h3>
             <div class="flex items-center gap-2 flex-wrap">
               <button class="btn btn-primary btn-sm" id="addBillBtn">+ New Recurring</button>
-              <button class="btn btn-secondary btn-sm" id="syncCalendarBtn" style="display:none;">Sync to Calendar</button>
+              <button class="btn btn-secondary btn-sm" id="syncCalendarBtn" style="display:none;">Preview Calendar resync</button>
               <span id="calSyncStatus" class="text-xs text-slate-500" style="display:none;"></span>
               <label for="billSortSelect" class="text-xs text-slate-400">Sort:</label>
               <select id="billSortSelect" class="text-xs w-24">
@@ -600,9 +601,9 @@
             <button id="prevMonth" class="btn btn-secondary btn-sm">&lt;</button>
             <h3 id="calendar-header" class="text-lg font-semibold text-white">Month Year</h3>
             <div class="flex items-center gap-2">
-              <button id="syncGcalBtn" class="btn btn-secondary btn-sm" style="display:none;" title="Sync to Google Calendar">
+              <button id="syncGcalBtn" class="btn btn-secondary btn-sm" style="display:none;" title="Preview Calendar resync">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                Sync to Google
+                Preview resync
               </button>
               <span id="gcalSyncStatusCal" class="text-xs text-slate-500" style="display:none;"></span>
               <button id="nextMonth" class="btn btn-secondary btn-sm">&gt;</button>
@@ -1019,7 +1020,7 @@
         <div id="patchNotesSection">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 class="text-sm font-semibold text-slate-300">Patch Notes</h3>
-            <span class="release-current-badge">Current: v0.38.1</span>
+            <span class="release-current-badge">Current: v0.38.2</span>
           </div>
           <p class="text-xs text-slate-500 mb-3">Open a release to review its improvements, fixes, and quality updates.</p>
           <div id="patchNotesList" class="patch-notes-list"></div>
@@ -1047,6 +1048,7 @@
     function selectAccount(userId) {
       const next = userId || 'signed-out';
       if (accountIsolation.owner() === next && !accountStorageBlocked) return;
+      document.getElementById('calendarPreviewDialog')?.close();
       if (state.checkTracker && !accountStorageBlocked) { saveState(); saveLlmChatHistory(); }
       try { accountIsolation.switchTo(userId); }
       catch (error) {
@@ -1075,6 +1077,10 @@
       renderAll();
     }
     const RELEASE_NOTES = [
+      {version:'v0.38.2',title:'Calendar Review & Recovery',date:'October 11, 2026',summary:'Preview Calendar changes and choose exactly what to apply.',sections:[
+        {title:'Review before syncing',items:['Preview the connected Calendar without changing bills, paycheck logs or events.','Explicitly verify and enroll eligible saved legacy events, then review their updates.','Create selected missing bill events with recoverable identities and duplicate retry protection.']},
+        {title:'History and recovery',items:['Protect historical dates, recurring exceptions and complex recurrence overrides.','Refuse stale bill, account, Calendar or cloud identity changes before overwriting them.','Recover confirmed event operations after cloud or local-storage failures without another event write.','Historical recurrence splitting and event deletion remain unavailable; conflicts stay preserved for review.']}
+      ]},
       {version:'v0.38.1',title:'Simple Check Logging',date:'October 10, 2026',summary:'Enter one date and log your paycheck using the saved schedule.',sections:[{title:'Less setup each payday',items:['The default New Check Log form contains only the paycheck date and Log button.','Cadence, early access and one-off overrides are tucked into optional schedule settings.','Save the schedule once; future new checks use it without rewriting existing history.']} ]},
       {version:'v0.38.0',title:'Paydays, Scenarios & Account Privacy',date:'October 10, 2026',summary:'Separates scheduled payday from expected early availability, protects paid history and isolates each account.',sections:[
         {title:'Paycheck planning',items:['Choose 15th/30th paydays with configurable early access or a 14-day cadence.','Preview boundaries, override actual deposit dates and prevent overlapping new checks.','Expected income remains unreceived; bank timing around weekends and holidays is not assumed.']},
@@ -6347,11 +6353,13 @@
     async function gcalFetch(url, options = {}) {
       const token = getGoogleCalToken();
       if (!token) throw new Error('No Google Calendar token');
+      const {preserveConnection=false,...requestOptions}=options;
       const resp = await fetch(url, {
-        ...options,
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
+        ...requestOptions,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(requestOptions.headers || {}) }
       });
       if (resp.status === 401) {
+        if(preserveConnection)throw new Error('Calendar session expired. No connection settings were changed. Reconnect explicitly before a new preview.');
         setGoogleCalToken(null);
         updateGoogleCalStatus();
         updateCalendarSyncButton();
@@ -6471,127 +6479,114 @@
       return formatDateYMD(end);
     }
 
-    async function deleteGcalEvent(gcalEventId) {
-      if (!gcalEventId || !getGoogleCalToken()) return;
-      const calId = state.appStates?.makeSomeProgressCalendarId;
-      if (!calId) return;
-      try {
-        await gcalFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(gcalEventId)}`, { method: 'DELETE' });
-      } catch (e) { /* ignore deletion failures for non-existent events */ }
+    async function deleteGcalEvent() { /* Deletion unavailable pending history review. */ }
+
+    async function updateGcalEvent() { /* Edits require explicit Calendar preview. */ }
+
+    async function loadCalendarCloudState(owner,guard) {
+      guard();const client=getSupabaseClient();
+      if(!client)throw new Error('Cloud recovery is unavailable.');
+      const {data:verified,error:authError}=await client.auth.getUser();guard();
+      if(authError || verified?.user?.id!==owner)throw new Error('Cloud account could not be verified.');
+      const {data,error}=await client.from('dashboard_data').select('data').eq('user_id',owner).maybeSingle();guard();
+      if(error || !data?.data)throw new Error('Current cloud records could not be read.');
+      return data.data;
     }
 
-    async function updateGcalEvent(bill) {
-      if (!bill.gcalEventId || !getGoogleCalToken()) return;
-      const calId = state.appStates?.makeSomeProgressCalendarId;
-      if (!calId) return;
-      const syncInfo = getBillSyncInfo(bill);
-      if (!syncInfo) return;
-      const dateStr = formatDateYMD(syncInfo.nextDueDate);
-      const intervalLabel = RECURRENCE_INTERVALS.find(i => i.value === bill.recurrenceInterval)?.label || bill.recurrenceInterval || 'Monthly';
-      const event = {
-        summary: `${bill.name} — ${formatCurrency(bill.amount)}`,
-        description: `Category: ${bill.category || 'Other'} | Recurring: ${intervalLabel} | Managed by MakeSomeProgress`,
-        start: { date: dateStr, timeZone: 'America/Chicago' },
-        end: { date: getEndDate(syncInfo.nextDueDate), timeZone: 'America/Chicago' },
-        recurrence: [syncInfo.rrule],
-        extendedProperties: { private: { source: 'makesomeprogress', billId: String(bill.id || bill.name) } },
-        colorId: '11'
-      };
-      try {
-        await gcalFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(bill.gcalEventId)}`, {
-          method: 'PUT',
-          body: JSON.stringify(event)
-        });
-      } catch (e) { /* silently fail on update errors */ }
-    }
-
+    let calendarPreviewBusy = false;
     async function syncToGoogleCalendar() {
-      if (!(await isUserAuthenticated())) { window.showToast('Please log in to sync to Google Calendar.', 'error'); return; }
-      const token = getGoogleCalToken();
-      if (!token) { window.showToast('Please connect Google Calendar first.', 'error'); return; }
-
-      const bills = state.checkTracker.bills || [];
-      if (bills.length === 0) { window.showToast('No recurring expenses to sync.', 'info'); return; }
-
-      let calendarId;
+      if (calendarPreviewBusy) return;
+      calendarPreviewBusy = true;
+      const accountToken = accountIsolation.token(), owner = accountIsolation.owner();
+      const previewDate=formatDateYMD(new Date());
+      const bills = state.checkTracker.bills;
+      let snapshot = CalendarPreview.snapshot(bills);
+      let expectedCloudBills=structuredClone(bills);
+      const calendarId = state.appStates?.makeSomeProgressCalendarId;
+      const credential = getGoogleCalToken();
+      function guard() {
+        if (formatDateYMD(new Date())!==previewDate)throw new Error('The calendar day changed. Close this review and preview again.');
+        if (accountStorageBlocked || !accountIsolation.valid(accountToken) || accountIsolation.owner() !== owner ||
+          CalendarPreview.snapshot(state.checkTracker.bills) !== snapshot ||
+          state.appStates?.makeSomeProgressCalendarId !== calendarId || getGoogleCalToken() !== credential)
+          throw new Error('Account, connection or bills changed. Close this review and preview again.');
+      }
+      async function calendarRequest(url,options={}) {guard();const response=await gcalFetch(url,{...options,preserveConnection:true});guard();return response;}
+      let dialog, applying=false;
       try {
-        calendarId = await findOrCreateMSPCalendar();
-      } catch (e) {
-        if (e.message === 'TOKEN_EXPIRED') return;
-        console.error('[GCal] findOrCreateMSPCalendar failed:', e);
-        window.showToast('Failed to find or create MakeSomeProgress calendar. Check console for details.', 'error');
-        return;
-      }
-
-      let synced = 0, skipped = 0, failed = 0;
-      for (const bill of bills) {
-        try {
-          // Skip $0 bills (card payment placeholders)
-          if (bill.amount === 0) continue;
-
-          // Skip bills that already have a GCal event
-          if (bill.gcalEventId) { skipped++; continue; }
-
-          const syncInfo = getBillSyncInfo(bill);
-          if (!syncInfo) continue;
-
-          const dateStr = formatDateYMD(syncInfo.nextDueDate);
-          const intervalLabel = RECURRENCE_INTERVALS.find(i => i.value === bill.recurrenceInterval)?.label || bill.recurrenceInterval || 'Monthly';
-
-          const event = {
-            summary: `${bill.name} — ${formatCurrency(bill.amount)}`,
-            description: `Category: ${bill.category || 'Other'} | Recurring: ${intervalLabel} | Managed by MakeSomeProgress`,
-            start: { date: dateStr, timeZone: 'America/Chicago' },
-            end: { date: getEndDate(syncInfo.nextDueDate), timeZone: 'America/Chicago' },
-            recurrence: [syncInfo.rrule],
-            extendedProperties: { private: { source: 'makesomeprogress', billId: String(bill.id || bill.name) } },
-            colorId: '11'
-          };
-
-          const resp = await gcalFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
-            method: 'POST',
-            body: JSON.stringify(event)
-          });
-
-          if (resp.ok) {
-            const created = await resp.json();
-            bill.gcalEventId = created.id;
-            console.log('Created GCal event for:', bill.name);
-            synced++;
-          } else {
-            if (resp.status === 401) return;
-            const errBody = await resp.text().catch(() => '');
-            console.error(`[GCal] Event create failed for "${bill.name}": ${resp.status} ${errBody}`);
-            if (resp.status === 403) {
-              window.showToast('Permission denied — please disconnect and reconnect Google Calendar in Settings.', 'error');
-              return;
-            }
-            if (resp.status === 404) {
-              window.showToast('Calendar not found — clearing cached ID. Please try syncing again.', 'error');
-              delete state.appStates.makeSomeProgressCalendarId;
-              saveState();
-              return;
-            }
-            failed++;
+        if (!credential || !calendarId || ['signed-out', 'unassigned'].includes(owner))
+          throw new Error('An existing connected Calendar and signed-in account are required. This preview does not create calendars.');
+        const calendars = await CalendarPreview.list(calendarRequest, CalendarPreview.base + '/users/me/calendarList', guard);
+        const calendar = calendars.find(c => c.id === calendarId);
+        if (!calendar || !['owner', 'writer'].includes(calendar.accessRole)) throw new Error('Saved calendar is unavailable or read-only. No fallback calendar will be used.');
+        const events = await CalendarPreview.list(calendarRequest, CalendarPreview.base + '/calendars/' + encodeURIComponent(calendarId) + '/events?singleEvents=false&showDeleted=true&maxResults=250', guard);
+        const rows = CalendarPreview.plan(bills, events, owner, calendarId, {today:previewDate});
+        guard();
+        document.getElementById('calendarPreviewDialog')?.remove();
+        dialog = document.createElement('dialog'); dialog.id = 'calendarPreviewDialog';
+        dialog.style.cssText = 'max-width:720px;width:calc(100% - 32px);max-height:85vh;overflow:auto;overflow-wrap:anywhere;border-radius:16px;padding:24px;';
+        const title = document.createElement('h2'); title.textContent = 'Calendar resync preview'; dialog.append(title);
+        const note = document.createElement('p'); note.textContent = 'Calendar: ' + (calendar.summary || calendar.id) + '. Select only verified operations. Enrollment requires confirming the exact saved event belongs to this bill. New events start on the next due date. Historical date/recurrence changes and deletion are unavailable. Title/category updates also change historical labels.'; dialog.append(note);
+        for (const row of rows) {
+          const item = document.createElement('p'); item.textContent = row.kind.toUpperCase() + ': ' + row.name + ' - ' + row.reason + (row.eventId ? ' Event: ' + row.eventId : '') + (row.before ? ' Before: ' + row.before : '') + (row.kind === 'update' || row.kind === 'create' ? ' After: ' + row.after + ' / ' + row.description : '') + (row.kind === 'create' || row.payload?.start ? ' Start: ' + row.target.start.date + ' / ' + row.target.recurrence.join(', ') : ''); dialog.append(item);
+          if (row.event) { const before=document.createElement('p');before.textContent='Existing Calendar: '+(row.event.start?.date || row.event.start?.dateTime || 'unknown start')+' / '+(row.event.recurrence || []).join(', ')+' / '+(row.event.description || 'No description');dialog.append(before); }
+          if (['adopt','create','update','recover'].includes(row.kind)) {
+            const label = document.createElement('label'), check = document.createElement('input'); check.type='checkbox';
+            check.onchange=()=>{row.selected=check.checked;refreshApply();};
+            label.append(check, document.createTextNode(row.kind==='adopt' ? ' I verified this exact Calendar event belongs to this bill; enroll it only.' : row.kind==='create' ? ' I verified no existing event represents this bill; create this event.' : row.kind==='recover' ? ' Finalize the confirmed event recovery metadata only.' : ' Apply the fields listed above.'));dialog.append(label);
           }
-        } catch (e) {
-          if (e.message === 'TOKEN_EXPIRED') return;
-          console.error(`[GCal] Event sync error for "${bill.name}":`, e);
-          failed++;
         }
-      }
-
-      if (!state.appStates) state.appStates = {};
-      state.appStates.lastCalSync = new Date().toISOString();
-      saveState();
-      saveDataToCloud();
-      updateGoogleCalStatus();
-      updateCalendarSyncButton();
-      const msg = synced > 0
-        ? `${synced} event${synced > 1 ? 's' : ''} synced to MakeSomeProgress calendar.`
-        : (skipped > 0 ? 'All events already synced — 0 new events created.' : 'No events to sync.');
-      window.showToast(msg + (failed > 0 ? ` ${failed} failed.` : ''), synced > 0 ? 'success' : 'info');
+        if (!rows.length) { const empty = document.createElement('p'); empty.textContent = 'No bills or app-marked events found.'; dialog.append(empty); }
+        const status = document.createElement('p'); status.setAttribute('role','status'); dialog.append(status);
+        const apply = document.createElement('button'); apply.className = 'btn btn-primary'; dialog.append(apply);
+        function refreshApply() { const count=rows.filter(r=>r.selected).length;apply.textContent='Apply '+count+' selected operations';apply.disabled=!count; }
+        refreshApply();
+        apply.onclick = async () => {
+          apply.disabled = true;
+          try {
+            guard();
+            const selected=rows.filter(r=>r.selected);
+            if (!window.confirm('Apply '+selected.length+' selected operations to '+(calendar.summary || calendar.id)+'? Enrollment saves ownership; updates change the listed fields; new events create recurring series. No deletion.')) { refreshApply(); return; }
+            applying=true;close.disabled=true;dialog.querySelectorAll('input[type=checkbox]').forEach(input=>input.disabled=true);
+            const results = await CalendarPreview.apply(rows,calendarRequest,calendarId,owner,guard,async(row,mapping,context)=>{
+              guard();
+              const bill=state.checkTracker.bills[row.billIndex], prior=bill.calendarSync;
+              bill.calendarSync=structuredClone(mapping);
+              try {
+                const encoded=JSON.stringify(state);localStorage.setItem(STORAGE_KEY,encoded);
+                if (localStorage.getItem(STORAGE_KEY)!==encoded) throw new Error('Calendar identity could not be verified in local recovery storage.');
+              } catch(e) { if(prior===undefined)delete bill.calendarSync;else bill.calendarSync=prior;throw e; }
+              snapshot=CalendarPreview.snapshot(state.checkTracker.bills);
+              try {
+              const currentCloud=await loadCalendarCloudState(owner,guard);guard();
+              if(currentCloud.appStates?.makeSomeProgressCalendarId!==calendarId || currentCloud.appStates?.googleCalendarToken!==credential)throw new Error('Cloud Calendar connection changed. No cloud overwrite was attempted; preview again after loading the current connection.');
+              if(CalendarPreview.financialSnapshot(currentCloud)!==CalendarPreview.financialSnapshot(state))throw new Error('Cloud records differ from this dashboard. Pending Calendar identity is preserved locally. Resolve the record changes and preview again; no cloud overwrite was attempted.');
+              if(!CalendarPreview.cloudMappingsAgree(expectedCloudBills,currentCloud.checkTracker?.bills || [],row.billIndex))throw new Error('Cloud Calendar identities changed since this dashboard was loaded. Unrelated mappings were preserved; no cloud overwrite was attempted. Load current records and preview again.');
+              const saved=await saveDataToCloud({silent:true});guard();
+              if(saved?.status!=='ok')throw new Error('Calendar identity saved locally, but cloud recovery was not confirmed. '+(saved?.reason || '')+' Preview again before retrying.');
+              expectedCloudBills=structuredClone(state.checkTracker.bills);
+              } catch(error) {
+                if(context?.phase==='confirmed' && accountIsolation.valid(accountToken) && accountIsolation.owner()===owner && CalendarPreview.snapshot(state.checkTracker.bills)===snapshot){
+                  bill.calendarSync.status='pending-cloud';snapshot=CalendarPreview.snapshot(state.checkTracker.bills);
+                  try {const encoded=JSON.stringify(state);localStorage.setItem(STORAGE_KEY,encoded);if(localStorage.getItem(STORAGE_KEY)!==encoded)throw new Error('Receipt storage verification failed.');}
+                  catch(_){error.message+=' The confirmed event receipt could not be persisted locally; its pending event ID remains in earlier recovery storage.';}
+                }
+                throw error;
+              }
+            });
+            status.textContent = results + ' operations completed. Close and preview again. Enrolled events can be updated on the next review.';
+          } catch (e) { status.textContent = e.message + (e.receipts?.length ? ' Confirmed event receipts: '+e.receipts.map(r=>r.operation+' '+r.eventId).join('; ')+'.' : '') + ' No automatic retry was attempted.'; }
+          finally {applying=false;close.disabled=false;}
+        };
+        const close = document.createElement('button'); close.className = 'btn btn-secondary'; close.textContent = 'Close'; close.onclick = () => dialog.close(); dialog.append(close);
+        dialog.addEventListener('cancel',event=>{if(applying)event.preventDefault();});
+        dialog.addEventListener('close', () => { dialog.remove(); calendarPreviewBusy = false; });
+        document.body.append(dialog); dialog.showModal();
+      } catch (e) { window.showToast(e.message, 'error'); }
+      finally { if (!dialog?.open) calendarPreviewBusy = false; }
     }
+
+
 
     async function updateCalendarSyncButton() {
       const btn = document.getElementById('syncGcalBtn');
@@ -7178,6 +7173,6 @@
       }, 1000);
     });
   </script>
-  <script src="mobile-budget.js?v=0.38.1"></script>
+  <script src="mobile-budget.js?v=0.38.2"></script>
 </body>
 </html>

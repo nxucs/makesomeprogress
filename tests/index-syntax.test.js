@@ -13,9 +13,9 @@ test('every inline script in index.html parses', () => {
 
 test('the scheduling and design assets are loaded', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /<script src="bill-scheduler\.js\?v=0\.38\.1"><\/script>/);
-  assert.match(html, /<script src="savings-forecast\.js\?v=0\.38\.1"><\/script>/);
-  assert.match(html, /<link rel="stylesheet" href="design-system\.css\?v=0\.38\.1"\/>/);
+  assert.match(html, /<script src="bill-scheduler\.js\?v=0\.38\.2"><\/script>/);
+  assert.match(html, /<script src="savings-forecast\.js\?v=0\.38\.2"><\/script>/);
+  assert.match(html, /<link rel="stylesheet" href="design-system\.css\?v=0\.38\.2"\/>/);
 });
 
 test('settings includes expandable release notes for recent releases', () => {
@@ -36,7 +36,7 @@ test('the refined workspace shell and navigation are present', () => {
   assert.match(html, /class="tabs app-nav"/);
   assert.match(html, /class="app-nav-heading hidden"/);
   assert.match(html, /id="workspace-shell-critical"/);
-  assert.match(html, /v0\.38\.1 &mdash; Simple Check Logging/);
+  assert.match(html, /v0\.38\.2 &mdash; Calendar Review/);
 });
 
 test('check log cards use the compact desktop structure', () => {
