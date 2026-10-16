@@ -11,7 +11,7 @@
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="calendar-preview.js?v=0.38.2"></script>
-  <script src="bill-scheduler.js?v=0.38.2"></script>
+  <script src="bill-scheduler.js?v=0.38.2-check-fix"></script>
   <script src="paycheck-planner.js?v=0.38.2"></script>
   <script src="account-isolation.js?v=0.38.2"></script>
   <script src="budget-scenarios.js?v=0.38.2"></script>
@@ -3326,7 +3326,8 @@
         cost: amount,
         category,
         dueDate: date,
-        paid: action.paid !== false
+        paid: action.paid !== false,
+        manualEntry: true
       });
       return `Added ${formatCurrency(amount)} for ${name} to ${log.name}.`;
     }
@@ -3336,6 +3337,8 @@
       if (!found) throw new Error('Could not find that check-log expense.');
       const { log, item } = found;
       const oldName = item.bill || 'expense';
+      item.scheduleDueDate = item.scheduleDueDate || item.dueDate;
+      item.userEdited = true;
       if (action.name) item.bill = sanitizeExpenseName(action.name) || item.bill;
       if (action.amount !== undefined) item.cost = Math.max(0, Number(action.amount) || 0);
       if (action.dueDate || action.date) item.dueDate = resolveAgentDate(action.dueDate || action.date) || item.dueDate;
@@ -3582,10 +3585,18 @@
       return dates;
     }
 
+    function canMatchLegacyExpenseName(name, source) {
+      const key = String(name || '').trim().toLowerCase();
+      return [...(state.checkTracker.bills || []), ...(state.checkTracker.oneTimeExpenses || [])]
+        .filter(expense => expense !== source && String(expense.name || '').trim().toLowerCase() === key).length === 0;
+    }
+
     function reconcileRecurringBillInLog(bill, log, previousName = null) {
       return BillScheduler.reconcileScheduledItems(log, {
         sourceType: 'recurring', sourceId: bill.id, name: bill.name,
         previousNames: previousName ? [previousName] : [],
+        allowLegacyMatch: canMatchLegacyExpenseName(bill.name, bill) && (!previousName || canMatchLegacyExpenseName(previousName, bill)),
+        preserveLegacyValues: previousName === null,
         amount: bill.amount, category: bill.category || 'Other',
         dates: getBillDuesForLog(bill, log)
       });
@@ -3606,6 +3617,8 @@
       return BillScheduler.reconcileScheduledItems(log, {
         sourceType: 'one-time', sourceId: expense.id, name: expense.name,
         previousNames: previousName ? [previousName] : [],
+        allowLegacyMatch: canMatchLegacyExpenseName(expense.name, expense) && (!previousName || canMatchLegacyExpenseName(previousName, expense)),
+        preserveLegacyValues: previousName === null,
         amount: expense.amount, category: expense.category || 'Other',
         dates: belongsInLog ? [expense.date] : []
       });
@@ -4665,7 +4678,7 @@
         </div>
         <div><label class="text-xs font-medium text-slate-400 mb-1 block">First Due Date</label><input type="date" id="billEditFirstDueDate" value="${bill.firstDueDate || ''}"></div>
         <div><label class="text-xs font-medium text-slate-400 mb-1 block">Recurrence Interval</label>
-          <select id="billEditInterval">${RECURRENCE_INTERVALS.map(i => `<option value="${i.value}" ${bill.recurrenceInterval === i.value ? 'selected' : ''}>${i.label}</option>`).join('')}</select>
+          <select id="billEditInterval">${bill.recurrenceInterval && !RECURRENCE_INTERVALS.some(i => i.value === bill.recurrenceInterval) ? `<option value="" selected>Unsupported saved interval — choose a schedule</option>` : ''}${RECURRENCE_INTERVALS.map(i => `<option value="${i.value}" ${(bill.recurrenceInterval || 'monthly') === i.value ? 'selected' : ''}>${i.label}</option>`).join('')}</select>
         </div>
         <p id="billEditSchedulePreview" class="text-sm text-slate-400" role="status" aria-live="polite"></p>
         <div><label class="text-xs font-medium text-slate-400 mb-1 block">Due Day (updates next due date)</label><input type="number" id="billEditDueDay" value="${bill.dueDay || 1}" min="1" max="31"></div>
@@ -4684,6 +4697,10 @@
       const schedulePreviewEl = document.getElementById('billEditSchedulePreview');
       const updateSchedulePreview = () => {
         const firstDate = firstDueDateEl.value;
+        if (!RECURRENCE_INTERVALS.some(i => i.value === intervalEl.value)) {
+          schedulePreviewEl.textContent = 'Choose a supported interval to preview payments.';
+          return;
+        }
         if (!firstDate) {
           schedulePreviewEl.textContent = 'Choose a first due date to see the next payments.';
           return;
@@ -4734,6 +4751,10 @@
 
       const bill = state.checkTracker.bills.find(b => b.id === editingBillId);
       if (!bill) return;
+      if (!RECURRENCE_INTERVALS.some(i => i.value === document.getElementById('billEditInterval').value)) {
+        alert('Choose a supported recurrence interval before saving.');
+        return;
+      }
       const oldName = bill.name;
       const previousFirstDueDate = bill.firstDueDate || '';
       const previousDueDay = normalizeDueDay(bill.dueDay, 1);
@@ -5032,6 +5053,21 @@
     }
 
     // ===================== CHECK LOGS =====================
+    function getLegacyScheduleReviewNames(log) {
+      const sources = [
+        ...(state.checkTracker.bills || []).map(source => ({ source, type: 'recurring' })),
+        ...(state.checkTracker.oneTimeExpenses || []).map(source => ({ source, type: 'one-time' }))
+      ];
+      return [...new Set(sources.filter(({ source, type }) => (log.items || []).some(item => {
+        if (item.manualEntry) return false;
+        const sameSource = item.scheduleSourceType
+          ? item.scheduleSourceType === type && String(item.scheduleSourceId) === String(source.id)
+          : normalizedText(item.bill) === normalizedText(source.name);
+        return sameSource && ((!item.scheduleDueDate && !BillScheduler.formatDateYMD(item.dueDate)) ||
+          (!item.scheduleSourceType && !canMatchLegacyExpenseName(source.name, source)));
+      })).map(({ source }) => source.name))];
+    }
+
     function getRepeatedRecurringBills(log) {
       const counts = new Map();
       (log.items || []).forEach(item => {
@@ -5114,9 +5150,9 @@
           ${repeatedBills.length ? `<div class="schedule-assurance mt-2">
             <span aria-hidden="true">!</span>
             <span>${repeatedBills.map(bill => escapeHtml(bill.name)).join(', ')} ${repeatedBills.length === 1 ? 'repeats' : 'repeat'} in this check because ${repeatedBills.length === 1 ? 'it is' : 'they are'} set to Weekly or Every 2 Weeks.</span>
-            <button class="btn btn-secondary btn-sm fix-repeated-bills-btn ml-2">Change ${repeatedBills.length === 1 ? 'it' : 'these'} to Monthly</button>
+            <button class="btn btn-secondary btn-sm fix-repeated-bills-btn ml-2">Review schedules</button>
           </div>` : ''}
-          <p class="schedule-assurance"><span aria-hidden="true">&#10003;</span> Recurring and one-time expenses due from ${formatDateForDisplay(log.startDate)} through ${formatDateForDisplay(log.endDate)} are included automatically.</p>
+          ${getLegacyScheduleReviewNames(log).length ? `<p class="schedule-assurance">Review legacy rows for ${getLegacyScheduleReviewNames(log).map(escapeHtml).join(', ')}: dates or source identity are unclear. Sync preserves these rows and skips ambiguous schedules.</p>` : `<p class="schedule-assurance"><span aria-hidden="true">&#10003;</span> Recurring and one-time expenses due from ${formatDateForDisplay(log.startDate)} through ${formatDateForDisplay(log.endDate)} are included automatically.</p>`}
           ${renderBankReviewForLog(log)}
           <div class="check-log-summary grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-700/50">
             <div class="stat-card"><p class="text-xs text-slate-500">Projected</p><p class="font-semibold text-sm projected-spending">${formatCurrency(projectedSpending)}</p></div>
@@ -5207,19 +5243,8 @@
       } else if (target.classList.contains('fix-repeated-bills-btn')) {
         const repeatedBills = getRepeatedRecurringBills(log);
         if (!repeatedBills.length) return;
-        showConfirmModal(
-          'Change recurring expenses to Monthly',
-          `Change ${repeatedBills.map(bill => bill.name).join(', ')} to monthly payments? Unpaid weekly repeats will be removed from open checks. Paid entries will remain.`,
-          () => {
-            repeatedBills.forEach(bill => {
-              bill.recurrenceInterval = 'monthly';
-              syncRecurringBillIntoOpenLogs(bill);
-            });
-            saveState(); saveDataToCloud();
-            renderBills(); renderCheckLogs(); renderCalendar(); renderAnalytics();
-            window.showToast('Monthly schedules updated across open checks.', 'success');
-          }
-        );
+        document.querySelector('[data-tab="bills-tab"]')?.click();
+        showBillEditModal(repeatedBills[0].id);
       } else if (target.classList.contains('sync-log-btn')) {
         syncBillsIntoCheckLog(log);
         saveState(); saveDataToCloud(); renderCheckLogs();
@@ -5229,7 +5254,7 @@
         applyBankSuggestionsToLog(log, selectedIds);
       } else if (target.classList.contains('add-item-btn')) {
         const newItemId = log.items.length > 0 ? Math.max(...log.items.map(i => i.id)) + 1 : 1;
-        log.items.push({ id: newItemId, bill: 'One-time expense', cost: 0, category: 'Other', dueDate: new Date().toISOString().split('T')[0], paid: false });
+        log.items.push({ id: newItemId, bill: 'One-time expense', cost: 0, category: 'Other', dueDate: new Date().toISOString().split('T')[0], paid: false, manualEntry: true });
         log.sortBy = 'manual';
         log.sortOrder = 'asc';
         saveState(); renderCheckLogs();
@@ -5273,6 +5298,8 @@
               }
             } else {
               const prop = target.dataset.prop;
+              item.scheduleDueDate = item.scheduleDueDate || item.dueDate;
+              item.userEdited = true;
               item[prop] = target.type === 'number' ? (parseFloat(target.value) || 0) : target.value;
             }
             saveState(); updateLogCalculations(log, logCard);

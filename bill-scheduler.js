@@ -128,27 +128,39 @@
     const expectedDates = [...new Set((schedule.dates || []).map(formatDateYMD).filter(Boolean))].sort();
     const original = JSON.stringify(log.items);
 
+    // A shared legacy name cannot identify which source owns the existing row.
+    if (schedule.allowLegacyMatch === false && log.items.some(item =>
+      !item.scheduleSourceType && !item.manualEntry && legacyNames.has(normalizeName(item.bill)))) return false;
+
+    const values = item => ({ bill: item.bill, cost: item.cost, category: item.category, dueDate: item.dueDate });
+    const protectedRow = item => item.paid || item.userEdited || item.bankTransactionId ||
+      (schedule.preserveLegacyValues && !item.scheduleValues) ||
+      (item.scheduleValues && JSON.stringify(values(item)) !== JSON.stringify(item.scheduleValues));
     const matches = item => {
       if (item.scheduleSourceType) {
         return item.scheduleSourceType === sourceType && String(item.scheduleSourceId ?? '') === sourceId;
       }
-      return legacyNames.has(normalizeName(item.bill));
+      return schedule.allowLegacyMatch !== false && !item.manualEntry && legacyNames.has(normalizeName(item.bill));
     };
 
     const matched = log.items.filter(matches);
+    if (schedule.preserveLegacyValues && matched.some(item =>
+      !item.scheduleDueDate && !formatDateYMD(item.dueDate))) return false;
     const used = new Set();
     for (const dueDate of expectedDates) {
-      let item = matched.find(candidate => !used.has(candidate) && candidate.dueDate === dueDate);
-      if (!item) item = matched.find(candidate => !used.has(candidate) && !candidate.paid);
+      let created = false;
+      let item = matched.find(candidate => !used.has(candidate) && (candidate.scheduleDueDate || candidate.dueDate) === dueDate);
+      if (!item) item = matched.find(candidate => !used.has(candidate) && !protectedRow(candidate));
       if (!item) {
         const newItemId = log.items.length > 0 ? Math.max(...log.items.map(candidate => Number(candidate.id) || 0)) + 1 : 1;
         item = { id: newItemId, paid: false };
         log.items.push(item);
         matched.push(item);
+        created = true;
       }
       used.add(item);
-      // A settled occurrence is a financial record, not a live schedule template.
-      if (item.paid) {
+      // Settled, imported and user-edited occurrences are financial records.
+      if (!created && protectedRow(item)) {
         // Attach identity to legacy rows so a rename cannot duplicate the settled occurrence.
         item.scheduleSourceType = sourceType;
         item.scheduleSourceId = schedule.sourceId;
@@ -160,9 +172,12 @@
       item.dueDate = dueDate;
       item.scheduleSourceType = sourceType;
       item.scheduleSourceId = schedule.sourceId;
+      item.scheduleDueDate = dueDate;
+      item.scheduleValues = values(item);
     }
 
-    log.items = log.items.filter(item => !matches(item) || item.paid || used.has(item));
+    // Unproven legacy surplus rows require review; never erase them by name alone.
+    log.items = log.items.filter(item => !matches(item) || protectedRow(item) || used.has(item) || !item.scheduleValues);
     return original !== JSON.stringify(log.items);
   }
 
