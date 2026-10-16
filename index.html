@@ -10,13 +10,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="calendar-preview.js?v=0.38.2"></script>
-  <script src="bill-scheduler.js?v=0.38.2-per-check-fix"></script>
-  <script src="check-allocations.js?v=0.38.2-per-check-fix"></script>
-  <script src="paycheck-planner.js?v=0.38.2"></script>
-  <script src="account-isolation.js?v=0.38.2"></script>
-  <script src="budget-scenarios.js?v=0.38.2-per-check-fix"></script>
-  <script src="savings-forecast.js?v=0.38.2"></script>
+  <script src="calendar-preview.js?v=0.38.3"></script>
+  <script src="bill-scheduler.js?v=0.38.3"></script>
+  <script src="check-allocations.js?v=0.38.3"></script>
+  <script src="paycheck-planner.js?v=0.38.3"></script>
+  <script src="account-isolation.js?v=0.38.3"></script>
+  <script src="budget-scenarios.js?v=0.38.3"></script>
+  <script src="savings-forecast.js?v=0.38.3"></script>
 
   <script>
     window.FORCE_MOBILE_VIEW = window.FORCE_MOBILE_VIEW === true;
@@ -357,7 +357,7 @@
     /* Ensure chart.js canvas is responsive */
     .chart-container canvas { max-width: 100% !important; }
   </style>
-  <link rel="stylesheet" href="design-system.css?v=0.38.2"/>
+  <link rel="stylesheet" href="design-system.css?v=0.38.3"/>
   <style id="workspace-shell-critical">
     /* Keep navigation structure intact even if a browser temporarily holds an older stylesheet. */
     @media (min-width: 1101px) {
@@ -381,7 +381,7 @@
         <img src="assets/msp-logo.svg" alt="" class="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" aria-hidden="true">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Make Some Progress</h1>
-          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.2 &mdash; Calendar Review</span></p>
+          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.3 &mdash; Check Logging Fix</span></p>
         </div>
       </div>
       <div class="actions app-actions flex items-center gap-2 flex-wrap">
@@ -409,7 +409,7 @@
       <button class="tab-btn" data-tab="search-tab" data-nav-icon="◷">Expense History</button>
       <button class="tab-btn" data-tab="mobile-budget-tab" data-nav-icon="▯">Mobile Budget</button>
       <button class="tab-btn" data-tab="ai-agent-tab" data-nav-icon="✦">AI Workspace</button>
-      <div class="app-nav-footer hidden"><span>v0.38.2</span><small>Calendar review</small></div>
+      <div class="app-nav-footer hidden"><span>v0.38.3</span><small>Check logging fix</small></div>
     </div>
 
     <div id="tab-contents" class="app-main">
@@ -1021,7 +1021,7 @@
         <div id="patchNotesSection">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 class="text-sm font-semibold text-slate-300">Patch Notes</h3>
-            <span class="release-current-badge">Current: v0.38.2</span>
+            <span class="release-current-badge">Current: v0.38.3</span>
           </div>
           <p class="text-xs text-slate-500 mb-3">Open a release to review its improvements, fixes, and quality updates.</p>
           <div id="patchNotesList" class="patch-notes-list"></div>
@@ -1078,6 +1078,10 @@
       renderAll();
     }
     const RELEASE_NOTES = [
+      {version:'v0.38.3',title:'Check Logging & Mortgage Allocations',date:'October 16, 2026',summary:'Keep recurring expenses stable when adding or syncing checks. All configured amounts stay unchanged.',sections:[
+        {title:'Stable expenses',items:['Legacy monthly bills stay Monthly when edited; unsupported saved intervals require review.','Repeated expense sync preserves paid, edited, bank-linked and manual rows without recreating their original occurrence.','Genuine weekly expenses remain separate; closed check history stays preserved.']},
+        {title:'One mortgage holding per check',items:['Support paired mid-month and month-end holding templates with one allocation per logged check, including early access and February.','Preview the M2 monthly and mortgage per-check repair for Check 24 before applying any record changes.','Apply creates a verified backup and export; guarded Undo restores only the reviewed settings and Check 24.','No automatic history rewrite or amount changes. Existing Calendar series require separate review.']}
+      ]},
       {version:'v0.38.2',title:'Calendar Review & Recovery',date:'October 11, 2026',summary:'Preview Calendar changes and choose exactly what to apply.',sections:[
         {title:'Review before syncing',items:['Preview the connected Calendar without changing bills, paycheck logs or events.','Explicitly verify and enroll eligible saved legacy events, then review their updates.','Create selected missing bill events with recoverable identities and duplicate retry protection.']},
         {title:'History and recovery',items:['Protect historical dates, recurring exceptions and complex recurrence overrides.','Refuse stale bill, account, Calendar or cloud identity changes before overwriting them.','Recover confirmed event operations after cloud or local-storage failures without another event write.','Historical recurrence splitting and event deletion remain unavailable; conflicts stay preserved for review.']}
@@ -7283,6 +7287,6 @@
       }, 1000);
     });
   </script>
-  <script src="mobile-budget.js?v=0.38.2"></script>
+  <script src="mobile-budget.js?v=0.38.3"></script>
 </body>
 </html>
