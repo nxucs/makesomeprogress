@@ -26,6 +26,19 @@
   function dates(bill, log, bills) {
     return selected(bill, log, bills) ? [log.startDate] : [];
   }
+  function assertLogCanSync(log,bills) {
+    const groups=[...new Set(bills.filter(b=>b.recurrenceInterval==='percheck'&&b.checkAllocation).map(b=>b.checkAllocation.group))];
+    groups.forEach(group=>{
+      const members=bills.filter(b=>b.recurrenceInterval==='percheck'&&b.checkAllocation?.group===group);
+      const active=members.filter(b=>selected(b,log,bills))[0];
+      const rows=(log.items||[]).filter(item=>!item.manualEntry && (item.scheduleSourceType
+        ? item.scheduleSourceType==='recurring'&&members.some(b=>String(b.id)===String(item.scheduleSourceId))
+        : members.some(b=>key(b.name)===key(item.bill))));
+      if(rows.length>1 || rows.some(item=>item.scheduleDueDate!==log.startDate || item.scheduleSourceType!=='recurring' || String(item.scheduleSourceId)!==String(active.id))) {
+        throw Error('Review existing mortgage holding rows in this check before syncing. They are preserved; no new holding was added.');
+      }
+    });
+  }
   function protectedRow(item, bill) {
     const values = {bill:item.bill,cost:item.cost,category:item.category,dueDate:item.dueDate};
     return item.paid || item.userEdited || item.bankTransactionId || item.manualEntry ||
@@ -113,5 +126,5 @@
     receipt.beforeBills.forEach(b=>{tracker.bills[tracker.bills.findIndex(item=>item.id===b.id)]=clone(b);});
     log.items=clone(receipt.beforeItems);
   }
-  return {slot,selected,dates,preview,apply,undo};
+  return {slot,selected,dates,assertLogCanSync,preview,apply,undo};
 });

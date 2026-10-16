@@ -80,6 +80,16 @@ test('manual same-name expenses survive repair and undated financial rows block 
   const undated=fixture();delete undated.checkLogs[1].items.find(i=>i.scheduleSourceId===1).dueDate;
   assert.ok(a.preview(undated).conflicts.some(c=>c.includes('Undated')));
 });
+test('other checks with legacy or protected holding rows require review before any new allocation',()=>{
+  const tracker=fixture(),old=JSON.parse(JSON.stringify(tracker.checkLogs[1]));
+  old.id=25;old.items.find(i=>i.scheduleSourceId===2).paid=true;
+  a.apply(tracker,a.preview(tracker));
+  const before=JSON.stringify(old);
+  assert.throws(()=>a.assertLogCanSync(old,tracker.bills),/preserved/);assert.equal(JSON.stringify(old),before);
+  assert.doesNotThrow(()=>a.assertLogCanSync(tracker.checkLogs[1],tracker.bills));
+  const single=JSON.parse(before);single.items=single.items.filter(i=>i.scheduleSourceId===1).slice(0,1);
+  assert.throws(()=>a.assertLogCanSync(single,tracker.bills),/Review/);
+});
 test('per-check templates do not expand into invented weekly/monthly calendar dates; projections retain two allocations',()=>{
   assert.deepEqual(s.getOccurrencesInRange('2026-10-16','percheck','2026-10-01','2026-10-31'),[]);
   assert.equal(s.getNextDueDate('2026-10-16','percheck'),null);

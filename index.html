@@ -3596,6 +3596,9 @@
     }
 
     function reconcileRecurringBillInLog(bill, log, previousName = null) {
+      if (bill.recurrenceInterval === 'percheck') {
+        try {CheckAllocations.assertLogCanSync(log,state.checkTracker.bills||[]);} catch {return false;}
+      }
       return BillScheduler.reconcileScheduledItems(log, {
         sourceType: 'recurring', sourceId: bill.id, name: bill.name,
         previousNames: previousName ? [previousName] : [],
@@ -3654,6 +3657,7 @@
     function syncBillsIntoCheckLog(log) {
       if (log.items?.length && log.endDate < formatDateYMD(new Date())) return false;
       (state.checkTracker.bills || []).filter(bill=>bill.recurrenceInterval==='percheck').forEach(bill=>CheckAllocations.dates(bill,log,state.checkTracker.bills));
+      CheckAllocations.assertLogCanSync(log,state.checkTracker.bills||[]);
       let modified = false;
       (state.checkTracker.bills || []).forEach(bill => { if (reconcileRecurringBillInLog(bill, log)) modified = true; });
       (state.checkTracker.oneTimeExpenses || []).forEach(expense => { if (reconcileOneTimeExpenseInLog(expense, log)) modified = true; });
@@ -5063,6 +5067,11 @@
     }
 
     // ===================== CHECK LOGS =====================
+    function checkAllocationReviewMessage(log) {
+      if(log.endDate < formatDateYMD(new Date()))return '';
+      try {CheckAllocations.assertLogCanSync(log,state.checkTracker.bills||[]);return '';}
+      catch(error){return error.message;}
+    }
     function persistReviewedRepair(next, backupLabel) {
       if (accountStorageBlocked) throw new Error('Account storage is unavailable. No repair applied.');
       const original = JSON.stringify(state), backupKey = STORAGE_KEY + ':check24:' + encodeURIComponent(accountIsolation.owner()) + ':' + backupLabel + ':' + Date.now();
@@ -5212,6 +5221,7 @@
             <button class="btn btn-secondary btn-sm fix-repeated-bills-btn ml-2">Review schedules</button>
           </div>` : ''}
           ${getLegacyScheduleReviewNames(log).length ? `<p class="schedule-assurance">Review legacy rows for ${getLegacyScheduleReviewNames(log).map(escapeHtml).join(', ')}: dates or source identity are unclear. Sync preserves these rows and skips ambiguous schedules.</p>` : `<p class="schedule-assurance"><span aria-hidden="true">&#10003;</span> Recurring and one-time expenses due from ${formatDateForDisplay(log.startDate)} through ${formatDateForDisplay(log.endDate)} are included automatically.</p>`}
+          ${checkAllocationReviewMessage(log) ? `<p class="schedule-assurance">${escapeHtml(checkAllocationReviewMessage(log))}</p>` : ''}
           ${Number(log.id) === 24 && log.startDate === '2026-10-13' && log.endDate === '2026-10-26' ? `<div class="flex flex-wrap gap-2 mt-2"><button class="btn btn-secondary btn-sm preview-check24-repair-btn">Preview M2 / mortgage repair</button>${state.appStates?.check24Repair ? '<button class="btn btn-secondary btn-sm undo-check24-repair-btn">Undo reviewed repair</button>' : ''}</div>` : ''}
           ${renderBankReviewForLog(log)}
           <div class="check-log-summary grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-700/50">
