@@ -10,13 +10,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="calendar-preview.js?v=0.38.3"></script>
-  <script src="bill-scheduler.js?v=0.38.3"></script>
-  <script src="check-allocations.js?v=0.38.3"></script>
-  <script src="paycheck-planner.js?v=0.38.3"></script>
-  <script src="account-isolation.js?v=0.38.3"></script>
-  <script src="budget-scenarios.js?v=0.38.3"></script>
-  <script src="savings-forecast.js?v=0.38.3"></script>
+  <script src="calendar-preview.js?v=0.38.4"></script>
+  <script src="bill-scheduler.js?v=0.38.4"></script>
+  <script src="check-allocations.js?v=0.38.4"></script>
+  <script src="paycheck-planner.js?v=0.38.4"></script>
+  <script src="account-isolation.js?v=0.38.4"></script>
+  <script src="budget-scenarios.js?v=0.38.4"></script>
+  <script src="savings-forecast.js?v=0.38.4"></script>
 
   <script>
     window.FORCE_MOBILE_VIEW = window.FORCE_MOBILE_VIEW === true;
@@ -357,7 +357,7 @@
     /* Ensure chart.js canvas is responsive */
     .chart-container canvas { max-width: 100% !important; }
   </style>
-  <link rel="stylesheet" href="design-system.css?v=0.38.3"/>
+  <link rel="stylesheet" href="design-system.css?v=0.38.4"/>
   <style id="workspace-shell-critical">
     /* Keep navigation structure intact even if a browser temporarily holds an older stylesheet. */
     @media (min-width: 1101px) {
@@ -381,7 +381,7 @@
         <img src="assets/msp-logo.svg" alt="" class="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" aria-hidden="true">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Make Some Progress</h1>
-          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.3 &mdash; Check Logging Fix</span></p>
+          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.4 &mdash; Direct Check Logging</span></p>
         </div>
       </div>
       <div class="actions app-actions flex items-center gap-2 flex-wrap">
@@ -409,7 +409,7 @@
       <button class="tab-btn" data-tab="search-tab" data-nav-icon="◷">Expense History</button>
       <button class="tab-btn" data-tab="mobile-budget-tab" data-nav-icon="▯">Mobile Budget</button>
       <button class="tab-btn" data-tab="ai-agent-tab" data-nav-icon="✦">AI Workspace</button>
-      <div class="app-nav-footer hidden"><span>v0.38.3</span><small>Check logging fix</small></div>
+      <div class="app-nav-footer hidden"><span>v0.38.4</span><small>Direct check logging</small></div>
     </div>
 
     <div id="tab-contents" class="app-main">
@@ -1021,7 +1021,7 @@
         <div id="patchNotesSection">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 class="text-sm font-semibold text-slate-300">Patch Notes</h3>
-            <span class="release-current-badge">Current: v0.38.3</span>
+            <span class="release-current-badge">Current: v0.38.4</span>
           </div>
           <p class="text-xs text-slate-500 mb-3">Open a release to review its improvements, fixes, and quality updates.</p>
           <div id="patchNotesList" class="patch-notes-list"></div>
@@ -1078,6 +1078,10 @@
       renderAll();
     }
     const RELEASE_NOTES = [
+      {version:'v0.38.4',title:'Direct Check Logging',date:'October 16, 2026',summary:'Correct the confirmed legacy cadence while logging a new check, without requiring an existing-log repair first.',sections:[
+        {title:'Creation works directly',items:['Recognize only the exact confirmed legacy dataset and create one monthly M2 occurrence and one mortgage holding per check.','Preserve every amount and all older logged records; genuine weekly configurations remain weekly.','Persist the corrected cadence after successful creation so sync, reload and subsequent checks remain stable.']},
+        {title:'Existing records and readability',items:['Keep already-created Check 24 rows behind the separate backup and Undo repair preview.','Prevent old paid or edited holding rows from being silently rewritten while new checks are created.','Fix banner text contrast and wrapping so Review schedules does not overlap the message.']}
+      ]},
       {version:'v0.38.3',title:'Check Logging & Mortgage Allocations',date:'October 16, 2026',summary:'Keep recurring expenses stable when adding or syncing checks. All configured amounts stay unchanged.',sections:[
         {title:'Stable expenses',items:['Legacy monthly bills stay Monthly when edited; unsupported saved intervals require review.','Repeated expense sync preserves paid, edited, bank-linked and manual rows without recreating their original occurrence.','Genuine weekly expenses remain separate; closed check history stays preserved.']},
         {title:'One mortgage holding per check',items:['Support paired mid-month and month-end holding templates with one allocation per logged check, including early access and February.','Preview the M2 monthly and mortgage per-check repair for Check 24 before applying any record changes.','Apply creates a verified backup and export; guarded Undo restores only the reviewed settings and Check 24.','No automatic history rewrite or amount changes. Existing Calendar series require separate review.']}
@@ -3577,7 +3581,9 @@
 
     function getBillDuesForLog(bill, log) {
       if (!log?.startDate || !log?.endDate) return [];
-      if (bill.recurrenceInterval === 'percheck') return CheckAllocations.dates(bill, log, state.checkTracker.bills);
+      const effectiveBills=CheckAllocations.effectiveBills(state.checkTracker);
+      bill=effectiveBills.find(candidate=>String(candidate.id)===String(bill.id))||bill;
+      if (bill.recurrenceInterval === 'percheck') return CheckAllocations.dates(bill, log, effectiveBills);
       if (bill.firstDueDate && bill.recurrenceInterval) {
         return BillScheduler.getOccurrencesInRange(bill.firstDueDate, bill.recurrenceInterval, log.startDate, log.endDate, bill.dueDay);
       }
@@ -3600,8 +3606,10 @@
     }
 
     function reconcileRecurringBillInLog(bill, log, previousName = null) {
-      if (bill.recurrenceInterval === 'percheck') {
-        try {CheckAllocations.assertLogCanSync(log,state.checkTracker.bills||[]);} catch {return false;}
+      const effectiveBills=CheckAllocations.effectiveBills(state.checkTracker);
+      const effective=effectiveBills.find(candidate=>String(candidate.id)===String(bill.id))||bill;
+      if (effective.recurrenceInterval === 'percheck') {
+        try {CheckAllocations.assertLogCanSync(log,effectiveBills);} catch {return false;}
       }
       return BillScheduler.reconcileScheduledItems(log, {
         sourceType: 'recurring', sourceId: bill.id, name: bill.name,
@@ -3660,11 +3668,15 @@
 
     function syncBillsIntoCheckLog(log) {
       if (log.items?.length && log.endDate < formatDateYMD(new Date())) return false;
-      (state.checkTracker.bills || []).filter(bill=>bill.recurrenceInterval==='percheck').forEach(bill=>CheckAllocations.dates(bill,log,state.checkTracker.bills));
-      CheckAllocations.assertLogCanSync(log,state.checkTracker.bills||[]);
+      const effectiveBills=CheckAllocations.effectiveBills(state.checkTracker);
+      effectiveBills.filter(bill=>bill.recurrenceInterval==='percheck').forEach(bill=>CheckAllocations.dates(bill,log,effectiveBills));
+      CheckAllocations.assertLogCanSync(log,effectiveBills);
       let modified = false;
       (state.checkTracker.bills || []).forEach(bill => { if (reconcileRecurringBillInLog(bill, log)) modified = true; });
       (state.checkTracker.oneTimeExpenses || []).forEach(expense => { if (reconcileOneTimeExpenseInLog(expense, log)) modified = true; });
+      // Persist the confirmed cadence only after a new check populated successfully.
+      // Existing log rows are never repaired or rewritten by this correction.
+      if(!(state.checkTracker.checkLogs||[]).includes(log) && effectiveBills!==state.checkTracker.bills)state.checkTracker.bills=effectiveBills;
       return modified;
     }
 
@@ -5073,7 +5085,7 @@
     // ===================== CHECK LOGS =====================
     function checkAllocationReviewMessage(log) {
       if(log.endDate < formatDateYMD(new Date()))return '';
-      try {CheckAllocations.assertLogCanSync(log,state.checkTracker.bills||[]);return '';}
+      try {CheckAllocations.assertLogCanSync(log,CheckAllocations.effectiveBills(state.checkTracker));return '';}
       catch(error){return error.message;}
     }
     function persistReviewedRepair(next, backupLabel) {
@@ -5221,7 +5233,7 @@
           <div class="check-log-add mt-2"><button class="btn btn-secondary btn-sm add-item-btn">+ Add One-Time Bill</button></div>
           ${repeatedBills.length ? `<div class="schedule-assurance mt-2">
             <span aria-hidden="true">!</span>
-            <span>${repeatedBills.map(bill => escapeHtml(bill.name)).join(', ')} ${repeatedBills.length === 1 ? 'repeats' : 'repeat'} in this check because ${repeatedBills.length === 1 ? 'it is' : 'they are'} set to Weekly or Every 2 Weeks.</span>
+            <span>${CheckAllocations.isConfirmedLegacy(state.checkTracker) ? 'These older logged occurrences need separate review. New checks use the confirmed monthly M2 and one mortgage holding per check.' : `${repeatedBills.map(bill => escapeHtml(bill.name)).join(', ')} ${repeatedBills.length === 1 ? 'repeats' : 'repeat'} in this check because ${repeatedBills.length === 1 ? 'it is' : 'they are'} set to Weekly or Every 2 Weeks.`}</span>
             <button class="btn btn-secondary btn-sm fix-repeated-bills-btn ml-2">Review schedules</button>
           </div>` : ''}
           ${getLegacyScheduleReviewNames(log).length ? `<p class="schedule-assurance">Review legacy rows for ${getLegacyScheduleReviewNames(log).map(escapeHtml).join(', ')}: dates or source identity are unclear. Sync preserves these rows and skips ambiguous schedules.</p>` : `<p class="schedule-assurance"><span aria-hidden="true">&#10003;</span> Recurring and one-time expenses due from ${formatDateForDisplay(log.startDate)} through ${formatDateForDisplay(log.endDate)} are included automatically.</p>`}
@@ -7287,6 +7299,6 @@
       }, 1000);
     });
   </script>
-  <script src="mobile-budget.js?v=0.38.3"></script>
+  <script src="mobile-budget.js?v=0.38.4"></script>
 </body>
 </html>

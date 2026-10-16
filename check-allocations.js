@@ -5,6 +5,28 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(scheduler) {
   const clone = value => JSON.parse(JSON.stringify(value));
   const key = value => String(value || '').trim().toLowerCase();
+  // Jeff confirmed the intended cadence for this exact legacy dataset. Do not
+  // infer cadence from a name alone or reinterpret other users' weekly bills.
+  function isConfirmedLegacy(tracker) {
+    const specs=[
+      [14,'M2',996,19,'2026-10-19'],
+      [2,'Mortgage Holding 1',2050,31,'2026-09-30'],
+      [1,'Mortgage Holding 2',2050,16,'2026-10-16']
+    ];
+    return (tracker.checkLogs||[]).some(log=>Number(log.id)===23&&log.startDate==='2026-09-29'&&log.endDate==='2026-10-12') && specs.every(([id,name,amount,day,date])=>{
+      const rows=(tracker.bills||[]).filter(b=>String(b.id)===String(id)||key(b.name)===key(name));
+      return rows.length===1 && String(rows[0].id)===String(id) && rows[0].name===name && Number(rows[0].amount)===amount && Number(rows[0].dueDay)===day && rows[0].firstDueDate===date && rows[0].recurrenceInterval==='weekly' && !rows[0].checkAllocation && !(tracker.oneTimeExpenses||[]).some(e=>key(e.name)===key(name));
+    });
+  }
+  function effectiveBills(tracker) {
+    if(!isConfirmedLegacy(tracker))return tracker.bills||[];
+    return tracker.bills.map(b=>{
+      if(![1,2,14].includes(Number(b.id)))return b;
+      const result={...b,legacyRecurrenceInterval:'weekly',recurrenceInterval:Number(b.id)===14?'monthly':'percheck'};
+      if(Number(b.id)!==14)result.checkAllocation={group:'mortgage-holding',slot:Number(b.id)===1?'mid-month':'month-end'};
+      return result;
+    });
+  }
   function affected(tracker,receipt) {
     return JSON.stringify({bills:tracker.bills.filter(b=>receipt.sourceIds.includes(b.id)).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id))),items:tracker.checkLogs.find(l=>l.id===receipt.logId)?.items.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id)))});
   }
@@ -21,7 +43,7 @@
     const candidates = bills.filter(b => b.recurrenceInterval === 'percheck' && b.checkAllocation?.group === group);
     const chosen = candidates.filter(b => b.checkAllocation?.slot === slot(log));
     if (chosen.length !== 1) throw Error('Review the mortgage allocation templates: exactly one template is required for this check slot.');
-    return chosen[0] === bill;
+    return String(chosen[0].id) === String(bill.id);
   }
   function dates(bill, log, bills) {
     return selected(bill, log, bills) ? [log.startDate] : [];
@@ -103,7 +125,7 @@
     });
     relevant.filter(item=>!kept.has(item)).forEach(item=>{
       const source=sourceFor(item);
-      const validDate = source.firstDueDate && scheduler.getOccurrencesInRange(source.firstDueDate,source.recurrenceInterval||'monthly',log.startDate,log.endDate,source.dueDay).map(scheduler.formatDateYMD).includes(item.dueDate);
+      const validDate = source.firstDueDate && scheduler.getOccurrencesInRange(source.firstDueDate,source.legacyRecurrenceInterval||source.recurrenceInterval||'monthly',log.startDate,log.endDate,source.dueDay).map(scheduler.formatDateYMD).includes(item.dueDate);
       if(protectedRow(item,source)||!validDate){conflicts.push('Preserve/review '+item.bill+' row '+item.id+' due '+item.dueDate);return;}
       nextLog.items=nextLog.items.filter(i=>i!==item);
       changes.push({kind:'remove',itemId:item.id,bill:item.bill,cost:item.cost,dueDate:item.dueDate});
@@ -126,5 +148,5 @@
     receipt.beforeBills.forEach(b=>{tracker.bills[tracker.bills.findIndex(item=>item.id===b.id)]=clone(b);});
     log.items=clone(receipt.beforeItems);
   }
-  return {slot,selected,dates,assertLogCanSync,preview,apply,undo};
+  return {isConfirmedLegacy,effectiveBills,slot,selected,dates,assertLogCanSync,preview,apply,undo};
 });

@@ -10,6 +10,29 @@ function fixture(legacy=false){
   if(legacy) log.items.forEach(item=>{delete item.scheduleValues;delete item.scheduleDueDate;});
   return {bills,checkLogs:[{id:23,startDate:'2026-09-29',endDate:'2026-10-12',items:[{id:1,bill:'Paid history',cost:10,paid:true}]},log],oneTimeExpenses:[]};
 }
+test('confirmed unrepaired legacy configuration resolves before creating a check, without changing amounts/history',()=>{
+  const tracker=fixture(),before=JSON.stringify(tracker);
+  assert.equal(a.isConfirmedLegacy(tracker),true);
+  const bills=a.effectiveBills(tracker);assert.notEqual(bills,tracker.bills);
+  assert.equal(JSON.stringify(tracker),before);
+  assert.deepEqual(bills.map(b=>b.amount),tracker.bills.map(b=>b.amount));
+  const log={id:25,startDate:'2026-10-28',endDate:'2026-11-10',items:[]};
+  bills.forEach(b=>{
+    const dates=b.recurrenceInterval==='percheck'?a.dates(b,log,bills):s.getOccurrencesInRange(b.firstDueDate,b.recurrenceInterval,log.startDate,log.endDate,b.dueDay);
+    s.reconcileScheduledItems(log,{sourceId:b.id,name:b.name,amount:b.amount,category:b.category,dates});
+  });
+  assert.equal(log.items.filter(i=>[1,2].includes(i.scheduleSourceId)).length,1);
+  assert.equal(log.items.find(i=>i.scheduleSourceId===2).cost,2050);
+  tracker.bills=bills;
+  const serialized=JSON.parse(JSON.stringify(tracker));assert.equal(a.effectiveBills(serialized),serialized.bills);
+  assert.deepEqual(a.preview(serialized).conflicts,[]);
+  assert.equal(a.preview(serialized).changes.filter(c=>c.kind==='remove').length,4);
+});
+test('similar weekly bills and different/imported identities are never name-converted',()=>{
+  for(const alter of [t=>t.bills[0].id=114,t=>t.bills[1].amount=2051,t=>t.bills[2].firstDueDate='2026-10-15',t=>t.checkLogs[0].endDate='2026-10-11',t=>t.bills.push({...t.bills[0],id:200})]){
+    const tracker=fixture();alter(tracker);assert.equal(a.isConfirmedLegacy(tracker),false);assert.equal(a.effectiveBills(tracker),tracker.bills);
+  }
+});
 test('reviewed Check 24 repair changes three settings and four excess rows, preserving amounts and other logs',()=>{
   for(const legacy of [false,true]){
     const tracker=fixture(legacy),before=JSON.stringify(tracker),plan=a.preview(tracker);

@@ -200,7 +200,7 @@ table tbody tr:hover { background: rgba(74, 98, 130, 0.08); }
   line-height: 1.45;
 }
 
-.schedule-assurance span {
+.schedule-assurance span[aria-hidden="true"] {
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -1457,7 +1457,7 @@ textarea:focus-visible,
     font-size: 0.62rem;
     line-height: 1.35;
   }
-  .check-log-card .schedule-assurance span { width: 0.95rem; height: 0.95rem; font-size: 0.58rem; }
+  .check-log-card .schedule-assurance span[aria-hidden="true"] { width: 0.95rem; height: 0.95rem; font-size: 0.58rem; }
 
   .check-log-bank-notice {
     margin-top: 0.5rem !important;
@@ -1472,3 +1472,7 @@ textarea:focus-visible,
   .check-log-summary .stat-card p:first-child { font-size: 0.58rem; }
   .check-log-summary .stat-card p:last-child { margin-top: 0.1rem; font-size: 0.72rem; }
 }
+
+.schedule-assurance:has(.fix-repeated-bills-btn) { flex-wrap: wrap; color: #e1f5ed; }
+.schedule-assurance > span:not([aria-hidden]) { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.schedule-assurance > .fix-repeated-bills-btn { flex: 0 0 auto; margin-left: 0; }

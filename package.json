@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test": "node --test",
+    "test:browser": "node tests/browser/direct-log.cjs",
     "check": "node --check calendar-preview.js && node --check bill-scheduler.js && node --check check-allocations.js && node --check savings-forecast.js && node --check paycheck-planner.js && node --check budget-scenarios.js && node --check account-isolation.js && node --test"
   },
-  "version": "0.38.3"
+  "version": "0.38.4"
 }
