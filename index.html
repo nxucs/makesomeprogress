@@ -11,10 +11,11 @@
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="calendar-preview.js?v=0.38.2"></script>
-  <script src="bill-scheduler.js?v=0.38.2-check-fix"></script>
+  <script src="bill-scheduler.js?v=0.38.2-per-check-fix"></script>
+  <script src="check-allocations.js?v=0.38.2-per-check-fix"></script>
   <script src="paycheck-planner.js?v=0.38.2"></script>
   <script src="account-isolation.js?v=0.38.2"></script>
-  <script src="budget-scenarios.js?v=0.38.2"></script>
+  <script src="budget-scenarios.js?v=0.38.2-per-check-fix"></script>
   <script src="savings-forecast.js?v=0.38.2"></script>
 
   <script>
@@ -1343,6 +1344,7 @@
 
     // ===================== RECURRENCE INTERVALS =====================
     const RECURRENCE_INTERVALS = [
+      { value: 'percheck', label: 'Once per check' },
       { value: 'weekly', label: 'Weekly' },
       { value: 'biweekly', label: 'Every 2 Weeks' },
       { value: 'monthly', label: 'Monthly' },
@@ -1365,6 +1367,7 @@
     }
 
     function getBillStatus(bill) {
+      if (bill.recurrenceInterval === 'percheck') return {status:'upcoming',text:'Per check',nextDue:null};
       if (!bill.firstDueDate || !bill.recurrenceInterval) {
         // Legacy bill with just dueDay
         const today = new Date();
@@ -3570,6 +3573,7 @@
 
     function getBillDuesForLog(bill, log) {
       if (!log?.startDate || !log?.endDate) return [];
+      if (bill.recurrenceInterval === 'percheck') return CheckAllocations.dates(bill, log, state.checkTracker.bills);
       if (bill.firstDueDate && bill.recurrenceInterval) {
         return BillScheduler.getOccurrencesInRange(bill.firstDueDate, bill.recurrenceInterval, log.startDate, log.endDate, bill.dueDay);
       }
@@ -3648,6 +3652,8 @@
     }
 
     function syncBillsIntoCheckLog(log) {
+      if (log.items?.length && log.endDate < formatDateYMD(new Date())) return false;
+      (state.checkTracker.bills || []).filter(bill=>bill.recurrenceInterval==='percheck').forEach(bill=>CheckAllocations.dates(bill,log,state.checkTracker.bills));
       let modified = false;
       (state.checkTracker.bills || []).forEach(bill => { if (reconcileRecurringBillInLog(bill, log)) modified = true; });
       (state.checkTracker.oneTimeExpenses || []).forEach(expense => { if (reconcileOneTimeExpenseInLog(expense, log)) modified = true; });
@@ -3978,7 +3984,7 @@
 
     function normalizeRecurrenceInterval(value) {
       const raw = String(value || 'monthly').toLowerCase().replace(/\s+/g, '');
-      if (['weekly', 'biweekly', 'monthly', 'bimonthly', 'quarterly', 'semiannual', 'annual'].includes(raw)) return raw;
+      if (['percheck', 'weekly', 'biweekly', 'monthly', 'bimonthly', 'quarterly', 'semiannual', 'annual'].includes(raw)) return raw;
       if (raw.includes('week') && raw.includes('2')) return 'biweekly';
       if (raw.includes('week')) return 'weekly';
       if (raw.includes('quarter')) return 'quarterly';
@@ -4697,6 +4703,10 @@
       const schedulePreviewEl = document.getElementById('billEditSchedulePreview');
       const updateSchedulePreview = () => {
         const firstDate = firstDueDateEl.value;
+        if (intervalEl.value === 'percheck') {
+          schedulePreviewEl.textContent = bill.checkAllocation ? `One allocation on each ${bill.checkAllocation.slot} check; the paired template serves the other check.` : 'One allocation on each logged check, including early deposits.';
+          return;
+        }
         if (!RECURRENCE_INTERVALS.some(i => i.value === intervalEl.value)) {
           schedulePreviewEl.textContent = 'Choose a supported interval to preview payments.';
           return;
@@ -5053,6 +5063,55 @@
     }
 
     // ===================== CHECK LOGS =====================
+    function persistReviewedRepair(next, backupLabel) {
+      if (accountStorageBlocked) throw new Error('Account storage is unavailable. No repair applied.');
+      const original = JSON.stringify(state), backupKey = STORAGE_KEY + ':check24:' + encodeURIComponent(accountIsolation.owner()) + ':' + backupLabel + ':' + Date.now();
+      localStorage.setItem(backupKey, original);
+      if (localStorage.getItem(backupKey) !== original) throw new Error('Backup could not be verified. No repair applied.');
+      const blob = new Blob([original], {type:'application/json'}), url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href=url;link.download=`make-some-progress-${backupLabel}-${Date.now()}.json`;link.click();URL.revokeObjectURL(url);
+      // Commit storage before replacing in-memory records. Storage failures leave the original state intact.
+      const encoded=JSON.stringify(next);
+      localStorage.setItem(STORAGE_KEY, encoded);
+      if(localStorage.getItem(STORAGE_KEY)!==encoded)throw new Error('Repair persistence could not be verified. The backup is preserved.');
+      state=next;renderAll();
+      window.showToast('Reviewed repair saved locally with a backup. Use Save to sync this account.', 'success');
+    }
+    function previewCheck24Repair() {
+      try {
+        const plan=CheckAllocations.preview(state.checkTracker), token=accountIsolation.token();
+        const descriptions=plan.changes.map(change=>{
+          if(change.kind==='setting')return `${change.bill}: ${change.before} → ${change.after}${change.slot?' ('+change.slot+')':''}; amount unchanged at ${formatCurrency(change.amount)}; due day ${change.dueDay} unchanged.`;
+          if(change.kind==='remove')return `REMOVE row ${change.itemId}: ${change.bill}, ${formatCurrency(change.cost)}, ${change.dueDate}.`;
+          if(change.kind==='add')return `ADD row ${change.itemId}: ${change.bill}, ${formatCurrency(change.cost)}, ${change.dueDate}.`;
+          return `UPDATE row ${change.itemId}: ${change.bill}, ${formatCurrency(change.cost)}, due ${change.oldDueDate} → ${change.dueDate}; occurrence ${change.occurrenceDate}${change.preserveFinancialFields?' (financial fields preserved)':''}.`;
+        });
+        if(plan.conflicts.length) {alert('No repair can be applied. Preserve and review these rows:\n'+plan.conflicts.join('\n'));return;}
+        if(!plan.changes.length){alert('These settings and Check 24 already match the reviewed repair.');return;}
+        showConfirmModal('Preview Check 24 repair', descriptions.join('\n')+'\n\nOnly these three settings and Check 24 change. Other checks remain intact. Apply creates a verified local backup and downloads an export. Amounts are unchanged. Cancel leaves all records intact.',()=>{
+          try {
+            if(!accountIsolation.valid(token))throw new Error('Account changed. Preview again.');
+            const next=structuredClone(state);
+            const receipt=CheckAllocations.apply(next.checkTracker,plan);
+            next.appStates=next.appStates||{};next.appStates.check24Repair=receipt;
+            persistReviewedRepair(next,'before-repair');
+          }catch(error){alert(error.message);}
+        });
+        Object.assign(document.getElementById('confirmModalText').style,{whiteSpace:'pre-wrap',maxHeight:'50vh',overflowY:'auto'});
+      }catch(error){alert(error.message);}
+    }
+    function undoCheck24Repair() {
+      const token=accountIsolation.token(),receipt=state.appStates?.check24Repair;
+      if(!receipt)return;
+      showConfirmModal('Undo Check 24 repair','Restore only the three previous recurrence settings and Check 24 rows? This is allowed only if the affected records have not changed since repair. A new backup is created first.',()=>{
+        try {
+          if(!accountIsolation.valid(token))throw new Error('Account changed. Preview again.');
+          const next=structuredClone(state);CheckAllocations.undo(next.checkTracker,receipt);delete next.appStates.check24Repair;
+          persistReviewedRepair(next,'before-undo');
+        }catch(error){alert(error.message);}
+      });
+    }
+
     function getLegacyScheduleReviewNames(log) {
       const sources = [
         ...(state.checkTracker.bills || []).map(source => ({ source, type: 'recurring' })),
@@ -5153,6 +5212,7 @@
             <button class="btn btn-secondary btn-sm fix-repeated-bills-btn ml-2">Review schedules</button>
           </div>` : ''}
           ${getLegacyScheduleReviewNames(log).length ? `<p class="schedule-assurance">Review legacy rows for ${getLegacyScheduleReviewNames(log).map(escapeHtml).join(', ')}: dates or source identity are unclear. Sync preserves these rows and skips ambiguous schedules.</p>` : `<p class="schedule-assurance"><span aria-hidden="true">&#10003;</span> Recurring and one-time expenses due from ${formatDateForDisplay(log.startDate)} through ${formatDateForDisplay(log.endDate)} are included automatically.</p>`}
+          ${Number(log.id) === 24 && log.startDate === '2026-10-13' && log.endDate === '2026-10-26' ? `<div class="flex flex-wrap gap-2 mt-2"><button class="btn btn-secondary btn-sm preview-check24-repair-btn">Preview M2 / mortgage repair</button>${state.appStates?.check24Repair ? '<button class="btn btn-secondary btn-sm undo-check24-repair-btn">Undo reviewed repair</button>' : ''}</div>` : ''}
           ${renderBankReviewForLog(log)}
           <div class="check-log-summary grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-700/50">
             <div class="stat-card"><p class="text-xs text-slate-500">Projected</p><p class="font-semibold text-sm projected-spending">${formatCurrency(projectedSpending)}</p></div>
@@ -5240,15 +5300,21 @@
 
       if (target.classList.contains('bank-sync-log-btn')) {
         syncBankTransactions(false);
+      } else if (target.classList.contains('preview-check24-repair-btn')) {
+        previewCheck24Repair();
+      } else if (target.classList.contains('undo-check24-repair-btn')) {
+        undoCheck24Repair();
       } else if (target.classList.contains('fix-repeated-bills-btn')) {
         const repeatedBills = getRepeatedRecurringBills(log);
         if (!repeatedBills.length) return;
         document.querySelector('[data-tab="bills-tab"]')?.click();
         showBillEditModal(repeatedBills[0].id);
       } else if (target.classList.contains('sync-log-btn')) {
-        syncBillsIntoCheckLog(log);
-        saveState(); saveDataToCloud(); renderCheckLogs();
-        window.showToast(`Expenses synced for ${log.name}.`, 'success');
+        try {
+          syncBillsIntoCheckLog(log);
+          saveState(); saveDataToCloud(); renderCheckLogs();
+          window.showToast(`Expenses synced for ${log.name}.`, 'success');
+        } catch(error) {alert(error.message);}
       } else if (target.classList.contains('bank-apply-log-btn')) {
         const selectedIds = Array.from(logCard.querySelectorAll('.bank-review-select:checked')).map(input => input.dataset.txId);
         applyBankSuggestionsToLog(log, selectedIds);
@@ -5291,7 +5357,7 @@
               // Show payment info for recurring bills
               if (item.paid) {
                 const bill = state.checkTracker.bills.find(b => b.name === item.bill);
-                if (bill && bill.firstDueDate && bill.recurrenceInterval) {
+                if (bill && bill.firstDueDate && bill.recurrenceInterval && bill.recurrenceInterval !== 'percheck') {
                   bill.lastPaidDate = item.dueDate || new Date().toISOString().split('T')[0];
                   showPaymentInfo(bill, item);
                 }
@@ -5350,6 +5416,7 @@
         const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
         let dayHtml = `<div class="calendar-day ${isToday ? 'today' : ''}"><div class="day-number">${day}</div>`;
         state.checkTracker.bills.forEach(bill => {
+          if (bill.recurrenceInterval === 'percheck') return;
           if (bill.firstDueDate && bill.recurrenceInterval) {
             // Check if this bill is due on this day
             const dayDate = new Date(year, month, day);
@@ -5369,6 +5436,10 @@
             }
           }
         });
+        state.checkTracker.checkLogs.forEach(log => (log.items || []).forEach(item => {
+          const bill=state.checkTracker.bills.find(b=>b.recurrenceInterval==='percheck' && item.scheduleSourceType==='recurring' && String(b.id)===String(item.scheduleSourceId));
+          if(bill && item.dueDate===formatDateYMD(new Date(year,month,day))) dayHtml+=`<div class="event event-bill">${escapeHtml(item.bill)} - ${formatCurrency(item.cost)} (check allocation)</div>`;
+        }));
         dayHtml += '</div>';
         calendarEl.innerHTML += dayHtml;
       }
@@ -6366,6 +6437,7 @@
 
     function getRecurrenceRule(interval) {
       switch (interval) {
+        case 'percheck': return null;
         case 'weekly': return 'RRULE:FREQ=WEEKLY';
         case 'biweekly': return 'RRULE:FREQ=WEEKLY;INTERVAL=2';
         case 'monthly': return 'RRULE:FREQ=MONTHLY';
@@ -6469,6 +6541,7 @@
     }
 
     function getBillSyncInfo(bill) {
+      if (bill.recurrenceInterval === 'percheck') return null;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 

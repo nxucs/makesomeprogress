@@ -43,6 +43,7 @@
   }
 
   function occurrenceAt(firstDueDate, interval, index, dueDay) {
+    if (interval === 'percheck') return null; // Requires the actual logged check, never a calendar expansion.
     const anchor = parseDateOnly(firstDueDate);
     if (!anchor || index < 0) return null;
     if (INTERVAL_DAYS[interval]) {
@@ -86,6 +87,7 @@
   }
 
   function getNextDueDate(firstDueDate, interval, afterDate, dueDay) {
+    if (interval === 'percheck') return null;
     const anchor = parseDateOnly(firstDueDate);
     const reference = parseDateOnly(afterDate || new Date());
     if (!anchor || !reference) return null;
@@ -98,6 +100,7 @@
   }
 
   function getOccurrenceOnOrBefore(firstDueDate, interval, dateValue, dueDay) {
+    if (interval === 'percheck') return null;
     const anchor = parseDateOnly(firstDueDate);
     const reference = parseDateOnly(dateValue);
     if (!anchor || !reference) return null;

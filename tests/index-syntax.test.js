@@ -13,7 +13,9 @@ test('every inline script in index.html parses', () => {
 
 test('the scheduling and design assets are loaded', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /<script src="bill-scheduler\.js\?v=0\.38\.2-check-fix"><\/script>/);
+  assert.match(html, /<script src="bill-scheduler\.js\?v=0\.38\.2-per-check-fix"><\/script>/);
+  assert.match(html, /<script src="check-allocations\.js\?v=0\.38\.2-per-check-fix"><\/script>/);
+  assert.match(html, /<script src="budget-scenarios\.js\?v=0\.38\.2-per-check-fix"><\/script>/);
   assert.match(html, /<script src="savings-forecast\.js\?v=0\.38\.2"><\/script>/);
   assert.match(html, /<link rel="stylesheet" href="design-system\.css\?v=0\.38\.2"\/>/);
 });

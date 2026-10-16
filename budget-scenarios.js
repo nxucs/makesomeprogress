@@ -16,7 +16,8 @@
         // Legacy monthly bills have only dueDay; include them without inventing a persisted anchor.
         const legacyDay = Math.min(Math.max(1, Number(bill.dueDay) || 1), last.getDate());
         const anchor = bill.firstDueDate || scheduler.formatDateYMD(new Date(first.getFullYear(), first.getMonth(), legacyDay));
-        const count = scheduler.getOccurrencesInRange(anchor, bill.recurrenceInterval || 'monthly', first, last, bill.dueDay).length;
+        // Semimonthly allocations are estimates; actual expenses come from logged checks.
+        const count = bill.recurrenceInterval === 'percheck' ? (bill.checkAllocation ? 1 : 2) : scheduler.getOccurrencesInRange(anchor, bill.recurrenceInterval || 'monthly', first, last, bill.dueDay).length;
         const amount = count * (Number(bill.amount) || 0);
         baseline += amount;
         if (!excluded.has(String(bill.id))) {
