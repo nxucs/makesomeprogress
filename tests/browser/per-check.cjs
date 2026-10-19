@@ -54,7 +54,7 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(await getRows(),[['Mortgage Holding 2',2050,'2026-10-13'],['M2',996,'2026-10-19']]);
     for(let n=0;n<3;n++)await card.locator('.sync-log-btn').click();
     const repaired=await getRows();
-    await page.reload({waitUntil:'networkidle'});await page.evaluate(()=>{saveDataToCloud=async()=>{};document.querySelector('[data-tab="check-logs-tab"]').click();});
+    await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>typeof state!=='undefined'&&state.checkTracker?.checkLogs.some(l=>l.id===24));await page.evaluate(()=>{saveDataToCloud=async()=>{};document.querySelector('[data-tab="check-logs-tab"]').click();});
     await card.locator('.sync-log-btn').click();assert.deepEqual(await getRows(),repaired);
     checks.push('Apply backs up, preserves amounts/history/weekly expenses; repeated sync and reload retain exactly one holding');
     // Undo is narrow and survives normal rendering/sorting and reload.

@@ -1,4 +1,14 @@
-# Bill Cycles — v0.39.0
+# Bill Cycles — v0.40.0
+
+## Paycheck waterfall
+
+The primary view now follows confirmed paychecks through a linear waterfall of bill allocations and a continuous calendar of paydays and due dates. Each step shows the allocation, remaining paycheck balance, and any bill amount carried forward. A bill may receive funding from several checks. Allocation snapshots preserve the amount still needed at that historical step; the due-date cards show the current total.
+
+Paychecks are entered manually or explicitly copied from an existing Check Log after confirming amount/date. Adding or logging a paycheck allocates nothing. A due-order preview can be adjusted with priorities, include/skip controls and maximum amounts. Editing any control invalidates the preview. Applying validates the current balances again, then records earmarks with their original paycheck provenance. It does not mark bills paid or change Check Logs.
+
+Optional `billCycles.waterfall` version 1 adds paycheck and allocation arrays alongside existing version-1 cycle data. Existing unsourced funding is preserved and reduces the remaining need; no source is inferred. Batch undo returns funds to the original paycheck while preserving allocations from other checks and unrelated manual funding. Paid occurrences block batch reversal until payment is explicitly undone. Manual funding edits cannot erase sourced allocations, and paycheck corrections cannot reduce the check below its allocated total. Repeated source reuse, stale previews and duplicate batches are rejected. Original imports/exports, backups, account isolation and persistence remain compatible.
+
+`npm run test:waterfall-browser` verifies the synthetic $5000 example at desktop/mobile sizes, due-order partial funding, priority/cap/skip controls, preview-only behavior, storage failure, a second check completing the partial bill, independent source undo, reload/export/import and unchanged Check Logs. `npm run check` now passes 114 source tests. The original Bill Cycles and full Check Log browser suites also remain part of release verification.
 
 Bill Cycles is an additional tab. It does not replace Check Logs or Expenses, and it does not feed the existing expense totals, bank matching, calendar synchronization, or paycheck allocation routines. Earmarking and marking paid are manual records, with no transfer or payment integration.
 
@@ -15,7 +25,7 @@ Bill Cycles is an additional tab. It does not replace Check Logs or Expenses, an
 
 ## Verification
 
-`npm run check` runs syntax checks and 105 source tests, including the original 95 tests. `npm run test:cycles-browser` exercises actual import/reuse/add/funding/Ready/payment/undo/correction/pause/schedule/reload/backup/export/import controls at desktop and mobile sizes in Los Angeles and Auckland timezones. It also verifies storage-failure safety, future amount snapshots, zero overflow/page errors, and unchanged existing financial records.
+`npm run check` runs syntax checks and 114 source tests, including the original 95 tests. `npm run test:cycles-browser` exercises actual import/reuse/add/funding/Ready/payment/undo/correction/pause/schedule/reload/backup/export/import controls at desktop and mobile sizes in Los Angeles and Auckland timezones. It also verifies storage-failure safety, future amount snapshots, zero overflow/page errors, and unchanged existing financial records.
 
 `npm run test:check-logs` runs the preserved direct legacy Log Check regression plus editor, genuine-weekly, paid/edited history, repeated sync/Add, repair preview/cancel, backup failure, repair apply/undo, holding boundaries, and reload regressions. Browser tests require Playwright (`PLAYWRIGHT_MODULE` can point to an existing installation) and Chrome (`CHROME_PATH` optional). They use disposable profiles, synthetic fixtures, and blocked financial APIs. Screenshots and JSON evidence go to `../evidence` or `EVIDENCE_DIR`. Set `APP_URL` for the Bill Cycles suite to verify the deployed static app with the same isolated flow.
 

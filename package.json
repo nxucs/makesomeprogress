@@ -4,9 +4,10 @@
   "scripts": {
     "test": "node --test",
     "test:browser": "node tests/browser/direct-log.cjs",
-    "check": "node --check bill-cycles.js && node --check bill-cycles-ui.js && node --check calendar-preview.js && node --check bill-scheduler.js && node --check check-allocations.js && node --check savings-forecast.js && node --check paycheck-planner.js && node --check budget-scenarios.js && node --check account-isolation.js && node --test",
+    "check": "node --check bill-waterfall.js && node --check bill-waterfall-ui.js && node --check bill-cycles.js && node --check bill-cycles-ui.js && node --check calendar-preview.js && node --check bill-scheduler.js && node --check check-allocations.js && node --check savings-forecast.js && node --check paycheck-planner.js && node --check budget-scenarios.js && node --check account-isolation.js && node --test",
     "test:cycles-browser": "node tests/browser/bill-cycles.cjs",
-    "test:check-logs": "node tests/browser/direct-log.cjs && node tests/browser/check-logging.cjs && node tests/browser/per-check.cjs"
+    "test:check-logs": "node tests/browser/direct-log.cjs && node tests/browser/check-logging.cjs && node tests/browser/per-check.cjs",
+    "test:waterfall-browser": "node tests/browser/waterfall.cjs"
   },
-  "version": "0.39.0"
+  "version": "0.40.0"
 }
