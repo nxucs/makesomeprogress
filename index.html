@@ -10,13 +10,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="calendar-preview.js?v=0.38.4"></script>
-  <script src="bill-scheduler.js?v=0.38.4"></script>
-  <script src="check-allocations.js?v=0.38.4"></script>
-  <script src="paycheck-planner.js?v=0.38.4"></script>
-  <script src="account-isolation.js?v=0.38.4"></script>
-  <script src="budget-scenarios.js?v=0.38.4"></script>
-  <script src="savings-forecast.js?v=0.38.4"></script>
+  <link rel="stylesheet" href="bill-cycles.css?v=0.39.0"/>
+  <script src="bill-cycles.js?v=0.39.0"></script>
+  <script src="bill-cycles-ui.js?v=0.39.0"></script>
+  <script src="calendar-preview.js?v=0.39.0"></script>
+  <script src="bill-scheduler.js?v=0.39.0"></script>
+  <script src="check-allocations.js?v=0.39.0"></script>
+  <script src="paycheck-planner.js?v=0.39.0"></script>
+  <script src="account-isolation.js?v=0.39.0"></script>
+  <script src="budget-scenarios.js?v=0.39.0"></script>
+  <script src="savings-forecast.js?v=0.39.0"></script>
 
   <script>
     window.FORCE_MOBILE_VIEW = window.FORCE_MOBILE_VIEW === true;
@@ -357,7 +360,7 @@
     /* Ensure chart.js canvas is responsive */
     .chart-container canvas { max-width: 100% !important; }
   </style>
-  <link rel="stylesheet" href="design-system.css?v=0.38.4"/>
+  <link rel="stylesheet" href="design-system.css?v=0.39.0"/>
   <style id="workspace-shell-critical">
     /* Keep navigation structure intact even if a browser temporarily holds an older stylesheet. */
     @media (min-width: 1101px) {
@@ -381,7 +384,7 @@
         <img src="assets/msp-logo.svg" alt="" class="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" aria-hidden="true">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Make Some Progress</h1>
-          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.38.4 &mdash; Direct Check Logging</span></p>
+          <p class="app-subtitle text-xs text-slate-500 hidden sm:block">Financial Dashboard <span class="ml-1 text-emerald-400/80">v0.39.0 &mdash; Bill Cycles</span></p>
         </div>
       </div>
       <div class="actions app-actions flex items-center gap-2 flex-wrap">
@@ -402,6 +405,7 @@
       <div class="app-nav-heading hidden"><span>Workspace</span><small>Plan · track · progress</small></div>
       <button class="tab-btn active" data-tab="dashboard-tab" data-nav-icon="⌂">Dashboard</button>
       <button class="tab-btn" data-tab="check-logs-tab" data-nav-icon="✓">Check Logs</button>
+      <button class="tab-btn" data-tab="bill-cycles-tab" data-nav-icon="$">Bill Cycles</button>
       <button class="tab-btn" data-tab="bills-tab" data-nav-icon="$">Expenses</button>
       <button class="tab-btn" data-tab="bank-tab" data-nav-icon="≋">Bank</button>
       <button class="tab-btn" data-tab="calendar-tab" data-nav-icon="□">Calendar</button>
@@ -409,7 +413,7 @@
       <button class="tab-btn" data-tab="search-tab" data-nav-icon="◷">Expense History</button>
       <button class="tab-btn" data-tab="mobile-budget-tab" data-nav-icon="▯">Mobile Budget</button>
       <button class="tab-btn" data-tab="ai-agent-tab" data-nav-icon="✦">AI Workspace</button>
-      <div class="app-nav-footer hidden"><span>v0.38.4</span><small>Direct check logging</small></div>
+      <div class="app-nav-footer hidden"><span>v0.39.0</span><small>Bill Cycles</small></div>
     </div>
 
     <div id="tab-contents" class="app-main">
@@ -480,6 +484,7 @@
       </div>
 
       <!-- Check Logs Tab -->
+      <div id="bill-cycles-tab" class="tab-content"></div>
       <div id="check-logs-tab" class="tab-content">
         <div class="card p-5">
           <div class="flex flex-col sm:flex-row flex-wrap justify-between items-center gap-4">
@@ -1021,7 +1026,7 @@
         <div id="patchNotesSection">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 class="text-sm font-semibold text-slate-300">Patch Notes</h3>
-            <span class="release-current-badge">Current: v0.38.4</span>
+            <span class="release-current-badge">Current: v0.39.0</span>
           </div>
           <p class="text-xs text-slate-500 mb-3">Open a release to review its improvements, fixes, and quality updates.</p>
           <div id="patchNotesList" class="patch-notes-list"></div>
@@ -1078,6 +1083,7 @@
       renderAll();
     }
     const RELEASE_NOTES = [
+      {version:'v0.39.0',title:'Bill Cycles',date:'October 19, 2026',summary:'A separate recurring-bill planner with manual earmarks and explicit payment history.',sections:[{title:'Plan and record',items:['Add known obligations or reuse existing bill definitions without modifying Expenses or Check Logs. Mortgage Holding reserves remain separate.','Schedule unique occurrences, earmark partial funding, see Ready and overdue states, and explicitly record actual payment dates.','Correct or undo occurrence actions with history. Existing imports remain valid; exports include cycles and a backup from before the first cycle change. Funding never transfers money or automatically pays a bill.','Preserve v0.38.4 direct Check Log fixes and all existing amounts and history.']}]},
       {version:'v0.38.4',title:'Direct Check Logging',date:'October 16, 2026',summary:'Correct the confirmed legacy cadence while logging a new check, without requiring an existing-log repair first.',sections:[
         {title:'Creation works directly',items:['Recognize only the exact confirmed legacy dataset and create one monthly M2 occurrence and one mortgage holding per check.','Preserve every amount and all older logged records; genuine weekly configurations remain weekly.','Persist the corrected cadence after successful creation so sync, reload and subsequent checks remain stable.']},
         {title:'Existing records and readability',items:['Keep already-created Check 24 rows behind the separate backup and Undo repair preview.','Prevent old paid or edited holding rows from being silently rewritten while new checks are created.','Fix banner text contrast and wrapping so Review schedules does not overlap the message.']}
@@ -6973,7 +6979,17 @@
     }
 
     // ===================== MAIN RENDER =====================
+    function renderBillCycles() {
+      try { BillCyclesUI.render({getState:()=>state,commit:next=>{
+        if(accountStorageBlocked)throw new Error('Load your account before editing Bill Cycles.');
+        const replacement={...state,billCycles:next},encoded=JSON.stringify(replacement);
+        localStorage.setItem(STORAGE_KEY,encoded);
+        if(localStorage.getItem(STORAGE_KEY)!==encoded)throw new Error('Could not verify local save. Export a backup and retry.');
+        state=replacement;
+      }}); } catch(error) { document.getElementById('bill-cycles-tab').textContent='Bill Cycles could not load: '+error.message+'. Existing views and data remain available. Export a backup before correcting the import.'; }
+    }
     function renderAll() {
+      renderBillCycles();
       renderDashboard();
       renderBills();
       renderOneTimeExpenses();
@@ -7006,6 +7022,7 @@
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
         targetButton.classList.add('active'); targetContent.classList.add('active');
+        if (tabId === 'bill-cycles-tab') renderBillCycles();
         if (tabId === 'search-tab') setTimeout(renderAnalytics, 50);
         if (tabId === 'savings-forecast-tab') setTimeout(renderSavingsForecast, 50);
         if (persistPreference) {
@@ -7299,6 +7316,6 @@
       }, 1000);
     });
   </script>
-  <script src="mobile-budget.js?v=0.38.4"></script>
+  <script src="mobile-budget.js?v=0.39.0"></script>
 </body>
 </html>
